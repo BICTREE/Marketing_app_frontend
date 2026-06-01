@@ -485,23 +485,28 @@ const TeamPage = () => {
               ))}
             </select>
           </div>
-          <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
-            <Plus size={16} /> Add Staff
-          </Button>
+          {/* Add Staff Button - Check permissions */}
+          {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin' || user?.permissions?.can_add_staff) && (
+            <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
+              <Plus size={16} /> Add Staff
+            </Button>
+          )}
         </div>
       </div>
 
       <Tabs defaultValue="directory" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="directory">Staff Directory</TabsTrigger>
-          <TabsTrigger value="requests" className="relative">
-            Profile Requests
-            {profileRequests?.filter(r => r.status === 'pending').length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] h-5 w-5 flex items-center justify-center rounded-full">
-                {profileRequests.filter(r => r.status === 'pending').length}
-              </span>
-            )}
-          </TabsTrigger>
+          {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin') && (
+            <TabsTrigger value="requests" className="relative">
+              Profile Requests
+              {profileRequests?.filter(r => r.status === 'pending').length > 0 && (
+                <span className="ml-2 bg-red-500 text-white text-[10px] h-5 w-5 flex items-center justify-center rounded-full">
+                  {profileRequests.filter(r => r.status === 'pending').length}
+                </span>
+              )}
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="directory" className="space-y-6">
@@ -863,12 +868,14 @@ const TeamPage = () => {
                     </div>
                   )}
 
-                  <div className="flex justify-end pt-4">
-                    <Button type="submit" disabled={updateMutation.isPending}>
-                      {updateMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : null}
-                      Save Profile Changes
-                    </Button>
-                  </div>
+                  {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin' || user?.permissions?.can_edit_staff) && (
+                    <div className="flex justify-end pt-4">
+                      <Button type="submit" disabled={updateMutation.isPending}>
+                        {updateMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : null}
+                        Save Profile Changes
+                      </Button>
+                    </div>
+                  )}
                 </form>
               </TabsContent>
 
@@ -890,77 +897,82 @@ const TeamPage = () => {
                             <CardContent className="p-4 space-y-3">
                               {group.fields.map(field => (
                                 <div key={field} className="flex items-center space-x-3">
-                                  <input
-                                    type="checkbox"
-                                    id={field}
-                                    {...permissionsForm.register(field)}
-                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                  />
-                                  <Label htmlFor={field} className="text-sm font-medium cursor-pointer">
-                                    {field.replace(/can_/g, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                                  </Label>
-                                </div>
-                              ))}
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                      <div className="flex justify-end pt-4">
-                        <Button type="submit" disabled={permissionsMutation.isPending}>
-                          {permissionsMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Shield size={16} className="mr-2" />}
-                          Update Security Matrix
-                        </Button>
-                      </div>
-                    </form>
+                                    <input
+                                      type="checkbox"
+                                      id={field}
+                                      {...permissionsForm.register(field)}
+                                      disabled={user?.role !== 'owner'}
+                                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                                    />
+                                    <Label htmlFor={field} className="text-sm font-medium cursor-pointer">
+                                      {field.replace(/can_/g, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                    </Label>
+                                  </div>
+                                ))}
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </div>
+                        {user?.role === 'owner' && (
+                          <div className="flex justify-end pt-4">
+                            <Button type="submit" disabled={permissionsMutation.isPending}>
+                              {permissionsMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Shield size={16} className="mr-2" />}
+                              Update Security Matrix
+                            </Button>
+                          </div>
+                        )}
+                      </form>
                   )}
                 </TabsContent>
               )}
 
               {/* Tasks Tab */}
               <TabsContent value="tasks" className="space-y-6">
-                <Card className="border-primary/20 bg-primary/5">
-                  <CardHeader className="py-4">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <Plus size={18} /> Assign New Task
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <form onSubmit={taskForm.handleSubmit(onTaskSubmit)} className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Task Title</Label>
-                          <Input {...taskForm.register('title')} placeholder="e.g. Call high-priority leads" />
-                          {taskForm.formState.errors.title && <p className="text-sm text-destructive">{taskForm.formState.errors.title.message}</p>}
+                {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin') && (
+                  <Card className="border-primary/20 bg-primary/5">
+                    <CardHeader className="py-4">
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <Plus size={18} /> Assign New Task
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={taskForm.handleSubmit(onTaskSubmit)} className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Task Title</Label>
+                            <Input {...taskForm.register('title')} placeholder="e.g. Call high-priority leads" />
+                            {taskForm.formState.errors.title && <p className="text-sm text-destructive">{taskForm.formState.errors.title.message}</p>}
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Due Date</Label>
+                            <Input type="datetime-local" {...taskForm.register('due_date')} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Priority</Label>
+                            <select 
+                              {...taskForm.register('priority')}
+                              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            >
+                              <option value="low">Low</option>
+                              <option value="medium">Medium</option>
+                              <option value="high">High</option>
+                            </select>
+                          </div>
                         </div>
                         <div className="space-y-2">
-                          <Label>Due Date</Label>
-                          <Input type="datetime-local" {...taskForm.register('due_date')} />
+                          <Label>Description</Label>
+                          <Textarea {...taskForm.register('description')} placeholder="Detailed instructions..." />
                         </div>
-                        <div className="space-y-2">
-                          <Label>Priority</Label>
-                          <select 
-                            {...taskForm.register('priority')}
-                            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                          >
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                          </select>
+                        <div className="flex justify-end">
+                          <Button type="submit" disabled={taskMutation.isPending}>
+                            {taskMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <ListTodo size={16} className="mr-2" />}
+                            Assign Task
+                          </Button>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Description</Label>
-                        <Textarea {...taskForm.register('description')} placeholder="Detailed instructions..." />
-                      </div>
-                      <div className="flex justify-end">
-                        <Button type="submit" disabled={taskMutation.isPending}>
-                          {taskMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <ListTodo size={16} className="mr-2" />}
-                          Assign Task
-                        </Button>
-                      </div>
-                    </form>
-                  </CardContent>
-                </Card>
+                      </form>
+                    </CardContent>
+                  </Card>
+                )}
 
                 <div className="space-y-3">
                   <h3 className="font-semibold text-lg">Current Assignments</h3>
@@ -1117,84 +1129,86 @@ const TeamPage = () => {
       </Card>
     </TabsContent>
 
-    <TabsContent value="requests">
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending Profile Updates</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loadingRequests ? (
-            <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Staff Member</TableHead>
-                  <TableHead>Requested Changes</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {profileRequests?.length > 0 ? profileRequests.map((request) => (
-                  <TableRow key={request.id}>
-                    <TableCell className="font-medium">{request.user_name}</TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        {Object.entries(request.requested_data).map(([key, value]) => (
-                          <div key={key} className="text-xs">
-                            <span className="font-bold capitalize">{key.replace(/_/g, ' ')}:</span> {value?.toString()}
-                          </div>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {new Date(request.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={request.status === 'pending' ? 'outline' : request.status === 'approved' ? 'success' : 'destructive'} className="capitalize">
-                        {request.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {request.status === 'pending' && (
-                        <div className="flex justify-end gap-2">
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-8 text-green-600 border-green-200 hover:bg-green-50"
-                            onClick={() => approveRequestMutation.mutate(request.id)}
-                            disabled={approveRequestMutation.isPending}
-                          >
-                            <CheckCircle2 size={14} className="mr-1" /> Approve
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="outline" 
-                            className="h-8 text-red-600 border-red-200 hover:bg-red-50"
-                            onClick={() => rejectRequestMutation.mutate(request.id)}
-                            disabled={rejectRequestMutation.isPending}
-                          >
-                            <XCircle size={14} className="mr-1" /> Reject
-                          </Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )) : (
+    {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin') && (
+      <TabsContent value="requests">
+        <Card>
+          <CardHeader>
+            <CardTitle>Pending Profile Updates</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loadingRequests ? (
+              <div className="flex justify-center p-8"><Loader2 className="animate-spin text-muted-foreground" /></div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
-                      No profile update requests found.
-                    </TableCell>
+                    <TableHead>Staff Member</TableHead>
+                    <TableHead>Requested Changes</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-    </TabsContent>
+                </TableHeader>
+                <TableBody>
+                  {profileRequests?.length > 0 ? profileRequests.map((request) => (
+                    <TableRow key={request.id}>
+                      <TableCell className="font-medium">{request.user_name}</TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {Object.entries(request.requested_data).map(([key, value]) => (
+                            <div key={key} className="text-xs">
+                              <span className="font-bold capitalize">{key.replace(/_/g, ' ')}:</span> {value?.toString()}
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {new Date(request.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={request.status === 'pending' ? 'outline' : request.status === 'approved' ? 'success' : 'destructive'} className="capitalize">
+                          {request.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {request.status === 'pending' && (
+                          <div className="flex justify-end gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="h-8 text-green-600 border-green-200 hover:bg-green-50"
+                              onClick={() => approveRequestMutation.mutate(request.id)}
+                              disabled={approveRequestMutation.isPending}
+                            >
+                              <CheckCircle2 size={14} className="mr-1" /> Approve
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className="h-8 text-red-600 border-red-200 hover:bg-red-50"
+                              onClick={() => rejectRequestMutation.mutate(request.id)}
+                              disabled={rejectRequestMutation.isPending}
+                            >
+                              <XCircle size={14} className="mr-1" /> Reject
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                        No profile update requests found.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+    )}
   </Tabs>
 
   {/* Termination Confirmation Dialog */}
