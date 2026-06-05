@@ -20,8 +20,8 @@ const Layout = () => {
     return (
         <div className="app-container">
             <header className="top-nav">
-                <div className="nav-brand">
-                    <Gem size={24} />
+                <div className="nav-brand" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <img src="/logo-gold.png" alt="Bindu Jewellery Logo" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
                     Bindu Jewellery
                 </div>
                 

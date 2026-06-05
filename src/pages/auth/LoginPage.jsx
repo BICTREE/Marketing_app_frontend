@@ -52,8 +52,8 @@ const LoginPage = () => {
       {/* Logo + Brand */}
       <div className="text-center space-y-3">
         <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#C9972A] to-[#F0C84A] flex items-center justify-center shadow-lg">
-            <Gem size={32} className="text-white" />
+          <div className="w-16 h-16 flex items-center justify-center shadow-lg">
+            <img src="/logo-gold.png" alt="Bindu Jewellery" className="w-16 h-16 object-contain" />
           </div>
         </div>
         <div>
