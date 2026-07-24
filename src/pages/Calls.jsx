@@ -535,18 +535,24 @@ const CallsPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="outcome">Outcome *</Label>
-                  <Select defaultValue="interested" onValueChange={(value) => setValue('outcome', value)}>
-                    <SelectTrigger id="outcome">
-                      <SelectValue placeholder="Select outcome" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="interested">Interested</SelectItem>
-                      <SelectItem value="callback">Callback</SelectItem>
-                      <SelectItem value="not_interested">Not Interested</SelectItem>
-                      <SelectItem value="no_answer">No Answer</SelectItem>
-                      <SelectItem value="converted">Converted</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Controller
+                    name="outcome"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger id="outcome">
+                          <SelectValue placeholder="Select outcome" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="interested">Interested</SelectItem>
+                          <SelectItem value="call_later">Call Later / Callback</SelectItem>
+                          <SelectItem value="not_interested">Not Interested</SelectItem>
+                          <SelectItem value="no_answer">No Answer</SelectItem>
+                          <SelectItem value="converted">Converted</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                   {errors.outcome && <p className="text-sm text-destructive">{errors.outcome.message}</p>}
                 </div>
 
@@ -590,7 +596,7 @@ const CallsPage = () => {
                   </div>
                 </div>
 
-                {['interested', 'callback', 'hot'].includes(watchedOutcome) && (
+                {['interested', 'call_later'].includes(watchedOutcome) && (
                   <>
                     <div className="space-y-2">
                       <Label>Next Contact Date</Label>
