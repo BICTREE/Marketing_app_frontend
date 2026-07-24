@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { toast } from 'react-hot-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
@@ -30,7 +31,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const campaignSchema = z.object({
   name: z.string().min(2, 'Campaign name is required'),
-  branch: z.string().min(1, 'Branch is required'),
   channel_type: z.string().min(1, 'Channel is required'),
   objective: z.string().min(1, 'Objective is required'),
   campaign_type: z.string().min(1, 'Type is required'),
@@ -46,6 +46,10 @@ const CampaignsPage = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('all');
+  // Multi-branch selection for campaign creation form
+  const [formSelectedBranches, setFormSelectedBranches] = useState([]);
+  const [branchSelectionError, setBranchSelectionError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch Branches
   const { data: branchesData } = useQuery({
@@ -112,13 +116,73 @@ const CampaignsPage = () => {
     mutationFn: (newCampaign) => api.post('/campaigns/campaigns/', newCampaign),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['campaigns'] });
-      setIsDialogOpen(false);
-      reset();
     }
   });
 
-  const onSubmit = (data) => {
-    createMutation.mutate(data);
+  const toggleBranch = (branchId) => {
+    setBranchSelectionError('');
+    setFormSelectedBranches(prev =>
+      prev.includes(branchId)
+        ? prev.filter(id => id !== branchId)
+        : [...prev, branchId]
+    );
+  };
+
+  const toggleAllBranches = () => {
+    setBranchSelectionError('');
+    const allIds = (branchesData || []).map(b => b.id.toString());
+    setFormSelectedBranches(prev =>
+      prev.length === allIds.length ? [] : allIds
+    );
+  };
+
+  const onSubmit = async (data) => {
+    if (formSelectedBranches.length === 0) {
+      setBranchSelectionError('Please select at least one branch');
+      return;
+    }
+
+    const { ...campaignFields } = data;
+    const branchesToCreate = formSelectedBranches;
+    let successCount = 0;
+    let failCount = 0;
+    setIsSubmitting(true);
+
+    for (const branchId of branchesToCreate) {
+      try {
+        await api.post('/campaigns/campaigns/', {
+          ...campaignFields,
+          branch: branchId,
+        });
+        successCount++;
+      } catch (err) {
+        failCount++;
+        const branchName = branchesData?.find(b => b.id.toString() === branchId)?.name || branchId;
+        console.error(`Failed to create campaign for branch ${branchName}:`, err.response?.data);
+      }
+    }
+
+    setIsSubmitting(false);
+    queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+
+    if (successCount > 0 && failCount === 0) {
+      toast.success(
+        branchesToCreate.length === 1
+          ? 'Campaign created successfully!'
+          : `Campaign created for ${successCount} branch${successCount > 1 ? 'es' : ''}!`
+      );
+      setIsDialogOpen(false);
+      reset();
+      setFormSelectedBranches([]);
+      setBranchSelectionError('');
+    } else if (successCount > 0 && failCount > 0) {
+      toast.success(`${successCount} campaign(s) created, ${failCount} failed.`);
+      setIsDialogOpen(false);
+      reset();
+      setFormSelectedBranches([]);
+    } else {
+      toast.error('Failed to create campaign. Check console for details.');
+    }
   };
 
   return (
@@ -165,36 +229,63 @@ const CampaignsPage = () => {
                   {errors.name && <p className="text-sm text-destructive">{errors.name.message}</p>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="branch">Branch Context</Label>
-                    <Select onValueChange={(value) => setValue('branch', value)}>
-                      <SelectTrigger id="branch">
-                        <SelectValue placeholder="Select branch..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {branchesData?.map(branch => (
-                          <SelectItem key={branch.id} value={branch.id.toString()}>{branch.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    {errors.branch && <p className="text-sm text-destructive">{errors.branch.message}</p>}
+                {/* Branch Context — Multi-Select */}
+                <div className="space-y-2">
+                  <Label>Branch Context *</Label>
+                  <div className="border rounded-lg p-3 space-y-2 bg-muted/20 max-h-40 overflow-y-auto">
+                    {/* All Branches toggle */}
+                    <label className="flex items-center gap-2.5 cursor-pointer hover:bg-background/70 rounded-md px-2 py-1.5 transition-colors">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded text-primary accent-primary cursor-pointer"
+                        checked={(branchesData || []).length > 0 && formSelectedBranches.length === (branchesData || []).length}
+                        onChange={toggleAllBranches}
+                      />
+                      <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <Globe size={13} className="text-primary" /> All Branches
+                      </span>
+                      {formSelectedBranches.length === (branchesData || []).length && (branchesData || []).length > 0 && (
+                        <Badge className="ml-auto text-[10px] bg-primary/10 text-primary border-0 px-1.5">All</Badge>
+                      )}
+                    </label>
+                    <div className="border-t border-border/40 my-1" />
+                    {/* Individual branches */}
+                    {(branchesData || []).map(branch => (
+                      <label key={branch.id} className="flex items-center gap-2.5 cursor-pointer hover:bg-background/70 rounded-md px-2 py-1.5 transition-colors">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded text-primary accent-primary cursor-pointer"
+                          checked={formSelectedBranches.includes(branch.id.toString())}
+                          onChange={() => toggleBranch(branch.id.toString())}
+                        />
+                        <span className="text-sm text-foreground">{branch.name}</span>
+                      </label>
+                    ))}
                   </div>
+                  {/* Selected summary */}
+                  {formSelectedBranches.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      {formSelectedBranches.length === (branchesData || []).length
+                        ? `All ${formSelectedBranches.length} branches selected — one campaign will be created per branch.`
+                        : `${formSelectedBranches.length} branch${formSelectedBranches.length > 1 ? 'es' : ''} selected.`}
+                    </p>
+                  )}
+                  {branchSelectionError && <p className="text-sm text-destructive">{branchSelectionError}</p>}
+                </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="channel_type">Channel Type</Label>
-                    <Select defaultValue="paid" onValueChange={(value) => setValue('channel_type', value)}>
-                      <SelectTrigger id="channel_type">
-                        <SelectValue placeholder="Select channel" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="paid">Paid</SelectItem>
-                        <SelectItem value="organic">Organic</SelectItem>
-                        <SelectItem value="offline">Offline</SelectItem>
-                        <SelectItem value="event">Event</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="channel_type">Channel Type</Label>
+                  <Select defaultValue="paid" onValueChange={(value) => setValue('channel_type', value)}>
+                    <SelectTrigger id="channel_type">
+                      <SelectValue placeholder="Select channel" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="paid">Paid</SelectItem>
+                      <SelectItem value="organic">Organic</SelectItem>
+                      <SelectItem value="offline">Offline</SelectItem>
+                      <SelectItem value="event">Event</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -243,9 +334,11 @@ const CampaignsPage = () => {
                   {errors.message && <p className="text-sm text-destructive">{errors.message.message}</p>}
                 </div>
 
-                <Button type="submit" className="w-full mt-2" disabled={createMutation.isPending}>
-                  {createMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Megaphone className="mr-2 h-4 w-4" />}
-                  Launch Campaign
+                <Button type="submit" className="w-full mt-2" disabled={isSubmitting}>
+                  {isSubmitting ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Megaphone className="mr-2 h-4 w-4" />}
+                  {isSubmitting
+                    ? `Creating for ${formSelectedBranches.length} branch${formSelectedBranches.length > 1 ? 'es' : ''}...`
+                    : 'Launch Campaign'}
                 </Button>
               </form>
             </DialogContent>
