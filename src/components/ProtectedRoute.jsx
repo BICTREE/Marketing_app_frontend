@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, useLocation, Link } from 'react-router-dom';
+import { Navigate, useLocation, Link, useNavigate } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 
 /**
@@ -63,27 +63,33 @@ const ProtectedRoute = ({ children, permission, requireAll, requireAny, allowedR
 
 const AccessDenied = () => {
   const { logout } = useAuth();
-  
-  const handleReLogin = () => {
+  const navigate = useNavigate();
+
+  const handleLoginRedirect = () => {
     logout();
-    window.location.href = '/login';
+    navigate('/login', { replace: true });
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-4">
+    <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-4 p-6 text-center">
       <div className="text-6xl">🔒</div>
       <h2 className="text-2xl font-bold text-foreground">Access Denied</h2>
       <p className="text-muted-foreground text-center max-w-sm">
         You don't have permission to view this page. Contact your administrator.
       </p>
-      <div className="flex gap-4 mt-2">
-        <Link to="/" className="text-primary hover:underline font-medium">Go Home</Link>
-        <button 
-          onClick={handleReLogin} 
-          className="text-muted-foreground hover:underline"
+      <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
+        <button
+          onClick={handleLoginRedirect}
+          className="bg-[#C9972A] hover:bg-[#7A5500] text-white font-semibold px-6 py-2.5 rounded-lg shadow transition-colors cursor-pointer"
         >
-          Re-login
+          Go to Login Page
         </button>
+        <Link
+          to="/"
+          className="px-5 py-2.5 text-sm font-medium text-foreground hover:text-primary border border-border rounded-lg hover:bg-accent transition-colors"
+        >
+          Go Home
+        </Link>
       </div>
     </div>
   );
