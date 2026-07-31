@@ -130,6 +130,13 @@ const BranchesPage = () => {
     if (companiesData && companiesData.length > 0) {
       data.company = companiesData[0].id;
     }
+    // Clean up empty optional fields so they don't cause backend decimal validation errors
+    if (!data.lat || data.lat.trim() === '') {
+      delete data.lat;
+    }
+    if (!data.lng || data.lng.trim() === '') {
+      delete data.lng;
+    }
     createMutation.mutate(data);
   };
 
