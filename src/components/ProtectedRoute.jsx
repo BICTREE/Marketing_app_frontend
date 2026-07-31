@@ -30,11 +30,13 @@ const ProtectedRoute = ({ children, permission, requireAll, requireAny, allowedR
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isOwner = user?.role === 'owner';
+  const roleLower = (user?.role || '').toLowerCase();
+  const isOwner = roleLower === 'owner' || roleLower === 'admin';
 
   // Role check (if specified)
   if (allowedRoles && allowedRoles.length > 0) {
-    if (!allowedRoles.includes(user?.role)) {
+    const allowedLower = allowedRoles.map(r => r.toLowerCase());
+    if (!allowedLower.includes(roleLower) && !isOwner) {
       return <AccessDenied />;
     }
   }

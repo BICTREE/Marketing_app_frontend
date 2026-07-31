@@ -84,7 +84,7 @@ const AppRoutes = () => {
         <Route path="/campaigns/integrations/meta/callback" element={<MetaCallback />} />
 
         {/* Protected Dashboard Routes (Admin/Manager) */}
-        <Route element={<ProtectedRoute permission="dashboard:view" allowedRoles={['owner', 'manager', 'sub_manager']}><DashboardLayout /></ProtectedRoute>}>
+        <Route element={<ProtectedRoute permission="dashboard:view" allowedRoles={['owner', 'admin', 'manager', 'sub_manager']}><DashboardLayout /></ProtectedRoute>}>
           {/* Role-Specific Dashboard Routes */}
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/manager/dashboard" element={<ManagerDashboard />} />

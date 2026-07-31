@@ -10,7 +10,10 @@ import authService from '../services/authService';
 const useAuth = () => {
   const { user, isAuthenticated, isLoading, login, logout } = useAuthStore();
 
-  const role = user?.role || null;
+  const role = (user?.role || '').toLowerCase();
+
+  const isOwner = role === 'owner' || role === 'admin';
+  const isManager = isOwner || role === 'manager';
 
   return {
     user,
@@ -18,8 +21,8 @@ const useAuth = () => {
     isLoading,
 
     // Role booleans
-    isOwner:    role === 'owner',
-    isManager:  role === 'owner' || role === 'manager',
+    isOwner,
+    isManager,
     isStaff:    ['sub_manager', 'staff', 'telecaller', 'field_staff', 'custom'].includes(role),
     isTelecaller: role === 'telecaller',
     isField:    role === 'field_staff',
@@ -29,7 +32,9 @@ const useAuth = () => {
      * @param {string[]} roles
      */
     hasRole: (roles = []) => {
-      return role ? roles.includes(role) : false;
+      if (!role) return false;
+      const rLower = roles.map(r => r.toLowerCase());
+      return rLower.includes(role) || isOwner;
     },
 
     /**
@@ -37,7 +42,7 @@ const useAuth = () => {
      * @param {string} permName (e.g. 'leads:view')
      */
     hasPermission: (permName) => {
-      if (role === 'owner') return true;
+      if (isOwner) return true;
       const allPerms = user?.all_permissions || [];
       return allPerms.includes(permName);
     },

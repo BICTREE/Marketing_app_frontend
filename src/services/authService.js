@@ -83,15 +83,19 @@ const authService = {
    * @param {string[]} requiredRoles
    */
   hasPermission: (requiredRoles = []) => {
-    const role = authService.getUserRole();
-    return role ? requiredRoles.includes(role) : false;
+    const role = (authService.getUserRole() || '').toLowerCase();
+    if (!role) return false;
+    const req = requiredRoles.map(r => r.toLowerCase());
+    return req.includes(role) || role === 'owner' || role === 'admin';
   },
 
   /**
    * Get the home route for a given role
    */
   getRoleDashboardPath: (role) => {
-    switch (role) {
+    const r = (role || '').toLowerCase();
+    switch (r) {
+      case 'admin':
       case 'owner':   return '/admin/dashboard';
       case 'manager': return '/manager/dashboard';
       default:        return '/staff/dashboard';
