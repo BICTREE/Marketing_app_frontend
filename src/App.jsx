@@ -8,6 +8,7 @@ import useAuthStore from './store/authStore';
 import { useEffect } from 'react';
 import api from './api/axios';
 
+
 // Auth
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 
