@@ -77,7 +77,7 @@ const PERMISSION_GROUPS = [
 
 const TeamPage = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, isOwner, isManager } = useAuth();
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -281,7 +281,7 @@ const TeamPage = () => {
   const createForm = useForm({
     resolver: zodResolver(staffCreateSchema),
     defaultValues: {
-      branch: user?.role !== 'owner' ? user?.branch : undefined
+      branch: !isOwner ? user?.branch : undefined
     }
   });
 
@@ -486,7 +486,7 @@ const TeamPage = () => {
             </select>
           </div>
           {/* Add Staff Button - Check permissions */}
-          {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin' || user?.permissions?.can_add_staff) && (
+          {(isOwner || isManager || user?.permissions?.can_add_staff) && (
             <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
               <Plus size={16} /> Add Staff
             </Button>
@@ -497,7 +497,7 @@ const TeamPage = () => {
       <Tabs defaultValue="directory" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="directory">Staff Directory</TabsTrigger>
-          {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin') && (
+          {(isOwner || isManager) && (
             <TabsTrigger value="requests" className="relative">
               Profile Requests
               {profileRequests?.filter(r => r.status === 'pending').length > 0 && (
@@ -643,14 +643,14 @@ const TeamPage = () => {
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="">Select Role...</option>
-                {user?.role === 'owner' && (
+                {isOwner && (
                   <>
                     <option value="owner">Owner</option>
                     <option value="manager">Manager</option>
                     <option value="sub_manager">Sub Manager</option>
                   </>
                 )}
-                {user?.role === 'manager' && (
+                {isManager && !isOwner && (
                   <option value="sub_manager">Sub Manager</option>
                 )}
                 <option value="telecaller">Telecaller</option>
@@ -667,7 +667,7 @@ const TeamPage = () => {
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="">Select Branch...</option>
-                {user?.role === 'owner' ? (
+                {isOwner ? (
                   branchesData?.map(b => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))
@@ -913,7 +913,7 @@ const TeamPage = () => {
                             </Card>
                           ))}
                         </div>
-                        {user?.role === 'owner' && (
+                        {isOwner && (
                           <div className="flex justify-end pt-4">
                             <Button type="submit" disabled={permissionsMutation.isPending}>
                               {permissionsMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Shield size={16} className="mr-2" />}
@@ -928,7 +928,7 @@ const TeamPage = () => {
 
               {/* Tasks Tab */}
               <TabsContent value="tasks" className="space-y-6">
-                {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin') && (
+                {(isOwner || isManager) && (
                   <Card className="border-primary/20 bg-primary/5">
                     <CardHeader className="py-4">
                       <CardTitle className="text-lg flex items-center gap-2">
@@ -1129,7 +1129,7 @@ const TeamPage = () => {
       </Card>
     </TabsContent>
 
-    {(user?.role === 'owner' || user?.role === 'manager' || user?.role === 'admin') && (
+    {(isOwner || isManager) && (
       <TabsContent value="requests">
         <Card>
           <CardHeader>
