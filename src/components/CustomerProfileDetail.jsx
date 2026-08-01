@@ -6,7 +6,7 @@ import {
   User, Phone, MapPin, Calendar, Clock, Mail, Activity, UserCheck,
   ShoppingBag, TrendingUp, MessageSquare, Star, Tag, ChevronDown,
   ChevronUp, Flame, CheckCircle2, AlertCircle, Gift, Edit2,
-  Home, Map, Globe, StickyNote, Briefcase, FileText, Save, X
+  Home, Map, Globe, StickyNote, Briefcase, FileText, Save, X, Plus, Loader2
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -370,6 +370,11 @@ const CustomerProfileDetail = ({ customerId }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({});
 
+  // Add Note state
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteContent, setNoteContent] = useState('');
+  const [noteType, setNoteType] = useState('general');
+
   const { data: customer, isLoading, isError } = useQuery({
     queryKey: ['customer', customerId],
     queryFn: () => api.get(`/leads/customers/${customerId}/`).then(r => r.data),
@@ -388,6 +393,29 @@ const CustomerProfileDetail = ({ customerId }) => {
   const handleUpdate = (e) => {
     e.preventDefault();
     updateMutation.mutate(editData);
+  };
+
+  // Add Note mutation — posts to call-logs with outcome='note'
+  const addNoteMutation = useMutation({
+    mutationFn: ({ leadId, content }) =>
+      api.post('/calls/call-logs/', {
+        lead: leadId,
+        outcome: 'note',
+        duration_seconds: 0,
+        notes: content,
+      }),
+    onSuccess: () => {
+      toast.success('Note added to lead history!');
+      setNoteDialogOpen(false);
+      setNoteContent('');
+      queryClient.invalidateQueries(['customer', customerId]);
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || 'Failed to add note.'),
+  });
+
+  const handleAddNote = (leadId) => {
+    if (!noteContent.trim()) { toast.error('Please write a note.'); return; }
+    addNoteMutation.mutate({ leadId, content: noteContent.trim() });
   };
 
   if (isLoading) return (
@@ -631,9 +659,21 @@ const CustomerProfileDetail = ({ customerId }) => {
           {/* TAB: TIMELINE */}
           {activeTab === 'timeline' && (
             <div className="animate-in fade-in duration-300">
-              <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-6">
-                <Clock size={18} className="text-[#C9972A]" /> Activity Timeline
-              </h3>
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <Clock size={18} className="text-[#C9972A]" /> Activity Timeline
+                </h3>
+                {/* Add Note Button — links to most recent lead */}
+                {customer.leads && customer.leads.length > 0 && (
+                  <button
+                    onClick={() => setNoteDialogOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-all shadow-sm shadow-purple-200"
+                  >
+                    <Plus size={14} /> Add Note
+                  </button>
+                )}
+              </div>
+
               <div className="max-w-2xl">
                 {customer.timeline && customer.timeline.length > 0 ? (
                   [...customer.timeline].reverse().map((ev, i) => (
@@ -647,6 +687,67 @@ const CustomerProfileDetail = ({ customerId }) => {
                   </div>
                 )}
               </div>
+
+              {/* Add Note Dialog */}
+              <Dialog open={noteDialogOpen} onOpenChange={setNoteDialogOpen}>
+                <DialogContent className="max-w-lg rounded-3xl p-0 overflow-hidden border-0 shadow-2xl">
+                  <div className="bg-white p-6">
+                    <DialogHeader>
+                      <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <StickyNote size={20} className="text-purple-600" />
+                        Add Note to Lead History
+                      </DialogTitle>
+                    </DialogHeader>
+                    <p className="text-xs text-gray-500 mt-1 mb-5">
+                      This note will be saved to <strong>{customer.name}</strong>'s activity timeline.
+                    </p>
+
+                    {/* Note Type */}
+                    <div className="flex gap-2 mb-4">
+                      {['general', 'follow_up', 'visit'].map(t => (
+                        <button
+                          key={t}
+                          onClick={() => setNoteType(t)}
+                          className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-all ${
+                            noteType === t
+                              ? 'bg-purple-600 text-white border-purple-600'
+                              : 'bg-gray-50 text-gray-500 border-gray-200 hover:border-purple-300'
+                          }`}
+                        >
+                          {t === 'general' ? 'General' : t === 'follow_up' ? 'Follow-up' : 'Visit Note'}
+                        </button>
+                      ))}
+                    </div>
+
+                    <textarea
+                      value={noteContent}
+                      onChange={e => setNoteContent(e.target.value)}
+                      rows={5}
+                      placeholder="Write your note here... e.g. Customer is interested in gold bangles, budget ~₹50K. Follow up after Diwali."
+                      className="w-full rounded-2xl border border-gray-200 bg-gray-50 p-4 text-sm focus:outline-none focus:border-purple-300 focus:ring-2 focus:ring-purple-100 resize-none"
+                    />
+
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        onClick={() => { setNoteDialogOpen(false); setNoteContent(''); }}
+                        className="flex-1 h-11 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-all"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleAddNote(customer.leads[customer.leads.length - 1]?.id)}
+                        disabled={addNoteMutation.isPending || !noteContent.trim()}
+                        className="flex-1 h-11 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                      >
+                        {addNoteMutation.isPending
+                          ? <><Loader2 size={14} className="animate-spin" /> Saving...</>
+                          : <><StickyNote size={14} /> Save Note</>
+                        }
+                      </button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
             </div>
           )}
 
