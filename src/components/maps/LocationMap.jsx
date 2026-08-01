@@ -23,17 +23,51 @@ const LocationMap = ({
   const [mapCenter, setMapCenter] = useState(center);
   const [mapZoom, setMapZoom] = useState(zoom);
 
-  // Custom icons for different marker types
-  const createCustomIcon = (type, isActive = false) => {
+  // Custom icons with NAME LABELS for staff
+  const staffColorPalette = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4', '#84CC16'];
+
+  const createCustomIcon = (type, isActive = false, markerName = '', index = 0) => {
     const colors = {
-      staff: '#3B82F6',      // Blue
-      lead: '#10B981',       // Green  
-      branch: '#F59E0B',     // Yellow
-      current: '#EF4444'     // Red for current location
+      staff: staffColorPalette[index % staffColorPalette.length],
+      lead: '#10B981',
+      branch: '#F59E0B',
+      current: '#EF4444'
     };
     
-    const color = isActive ? colors.current : colors[type] || colors.staff;
+    const color = isActive ? (colors.staff || colors.current) : colors[type] || colors.staff;
+    const firstName = markerName ? markerName.split(' ')[0] : '';
     
+    // For active staff markers — show name label on map
+    if (type === 'staff' && isActive && firstName) {
+      return new DivIcon({
+        html: `
+          <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">
+            <div style="
+              background:${color};color:#fff;font-size:10px;font-weight:700;
+              padding:2px 7px;border-radius:10px;white-space:nowrap;
+              box-shadow:0 2px 6px rgba(0,0,0,0.3);
+              border:2px solid #fff;letter-spacing:0.3px;
+            ">${firstName}</div>
+            <div style="
+              width:12px;height:12px;background:${color};border-radius:50%;
+              border:3px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.3);
+              margin-top:2px;
+            "></div>
+            <div style="
+              width:0;height:0;border-left:4px solid transparent;
+              border-right:4px solid transparent;border-top:5px solid ${color};
+              margin-top:-1px;
+            "></div>
+          </div>
+        `,
+        className: 'custom-staff-marker',
+        iconSize: [80, 46],
+        iconAnchor: [40, 46],
+        popupAnchor: [0, -46]
+      });
+    }
+
+    // Default pin (lead/branch/inactive)
     return new DivIcon({
       html: `
         <div style="
@@ -95,7 +129,7 @@ const LocationMap = ({
           <Marker
             key={`marker-${index}`}
             position={[marker.latitude, marker.longitude]}
-            icon={createCustomIcon(marker.type || 'staff', marker.is_active)}
+            icon={createCustomIcon(marker.type || 'staff', marker.is_active, marker.name || marker.user_name || '', index)}
           >
             <Popup>
               <div style={{ minWidth: '200px' }}>

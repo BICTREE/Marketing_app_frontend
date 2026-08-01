@@ -453,20 +453,64 @@ const FieldVisitsPage = () => {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 
-                {/* Manager view: all staff */}
-                {canManageVisits && liveTrackingData?.map((loc, i) => (
-                  <Marker key={loc.staff_id || i} position={[loc.latitude, loc.longitude]}>
-                    <Popup>
-                      <div className="text-sm min-w-[160px]">
-                        <p className="font-bold border-b pb-1 mb-1">{loc.staff_name}</p>
-                        {loc.lead_name && <p className="text-xs">Visiting: {loc.lead_name}</p>}
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(loc.timestamp).toLocaleTimeString()}
-                        </p>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
+                {/* Manager view: all staff with NAME LABELS on map */}
+                {canManageVisits && liveTrackingData?.map((loc, i) => {
+                  const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4', '#84CC16'];
+                  const color = staffColors[i % staffColors.length];
+                  const firstName = (loc.staff_name || 'Staff').split(' ')[0];
+                  
+                  return (
+                    <Marker 
+                      key={loc.staff_id || i} 
+                      position={[loc.latitude, loc.longitude]}
+                      icon={L.divIcon({
+                        className: 'custom-staff-marker',
+                        html: `
+                          <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">
+                            <div style="
+                              background:${color};color:#fff;font-size:10px;font-weight:700;
+                              padding:3px 8px;border-radius:12px;white-space:nowrap;
+                              box-shadow:0 2px 8px rgba(0,0,0,0.3);letter-spacing:0.3px;
+                              border:2px solid #fff;
+                            ">${firstName}</div>
+                            <div style="
+                              width:14px;height:14px;background:${color};border-radius:50%;
+                              border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.35);
+                              margin-top:2px;
+                            "></div>
+                            <div style="
+                              width:0;height:0;border-left:5px solid transparent;
+                              border-right:5px solid transparent;border-top:6px solid ${color};
+                              margin-top:-1px;
+                            "></div>
+                          </div>
+                        `,
+                        iconSize: [80, 50],
+                        iconAnchor: [40, 50],
+                        popupAnchor: [0, -50]
+                      })}
+                    >
+                      <Popup>
+                        <div className="text-sm min-w-[200px]">
+                          <div style={{display:'flex',alignItems:'center',gap:8,borderBottom:'1px solid #eee',paddingBottom:6,marginBottom:6}}>
+                            <div style={{width:28,height:28,borderRadius:'50%',background:color,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:700,fontSize:12}}>
+                              {(loc.staff_name || '?')[0].toUpperCase()}
+                            </div>
+                            <div>
+                              <p style={{fontWeight:700,margin:0,fontSize:13}}>{loc.staff_name}</p>
+                              <p style={{margin:0,fontSize:10,color:'#888'}}>Field Staff</p>
+                            </div>
+                          </div>
+                          {loc.lead_name && <p style={{fontSize:12,margin:'4px 0'}}><strong>📍 Visiting:</strong> {loc.lead_name}</p>}
+                          <p style={{fontSize:11,color:'#888',margin:'4px 0'}}>
+                            🕐 Last ping: {new Date(loc.timestamp).toLocaleTimeString()}
+                          </p>
+                          {loc.accuracy && <p style={{fontSize:10,color:'#aaa',margin:0}}>GPS ±{Math.round(loc.accuracy)}m</p>}
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
 
                 {/* Staff view: own location */}
                 {!canManageVisits && userLocation && (
@@ -475,31 +519,88 @@ const FieldVisitsPage = () => {
                   </Marker>
                 )}
 
-                {/* Draw trail for the active visit */}
+                {/* Draw trail/road path for each active visit with checkins */}
                 {filteredVisits
                   .filter(v => v.status === 'active' && v.start_lat && v.checkins?.length > 0)
-                  .map(v => (
-                    <React.Fragment key={`trail-${v.id}`}>
-                      <Polyline 
-                        positions={v.checkins.map(c => [c.lat, c.lng])}
-                        color="#C9972A"
-                        weight={4}
-                        opacity={0.7}
-                        dashArray="5, 10"
-                      />
-                      {/* Check-in pings along the way */}
-                      {v.checkins.map((c, idx) => (
-                        <Marker 
-                          key={`ping-${v.id}-${idx}`} 
-                          position={[c.lat, c.lng]}
-                          icon={L.divIcon({
-                            className: 'bg-[#C9972A] w-2 h-2 rounded-full border border-white',
-                            iconSize: [8, 8]
-                          })}
+                  .map((v, vIdx) => {
+                    const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899'];
+                    const trailColor = staffColors[vIdx % staffColors.length];
+                    const points = v.checkins.map(c => [c.lat, c.lng]);
+                    // Add start point at beginning
+                    if (v.start_lat && v.start_lng) {
+                      points.unshift([parseFloat(v.start_lat), parseFloat(v.start_lng)]);
+                    }
+                    
+                    return (
+                      <React.Fragment key={`trail-${v.id}`}>
+                        {/* Main trail polyline */}
+                        <Polyline 
+                          positions={points}
+                          color={trailColor}
+                          weight={4}
+                          opacity={0.8}
                         />
-                      ))}
-                    </React.Fragment>
-                  ))
+                        {/* Dashed shadow for visibility */}
+                        <Polyline 
+                          positions={points}
+                          color="#ffffff"
+                          weight={6}
+                          opacity={0.3}
+                        />
+                        {/* Start pin */}
+                        {v.start_lat && v.start_lng && (
+                          <Marker 
+                            position={[parseFloat(v.start_lat), parseFloat(v.start_lng)]}
+                            icon={L.divIcon({
+                              className: '',
+                              html: `<div style="
+                                width:18px;height:18px;background:#10B981;border-radius:50%;
+                                border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);
+                                display:flex;align-items:center;justify-content:center;
+                                color:#fff;font-size:8px;font-weight:700;
+                              ">S</div>`,
+                              iconSize: [18, 18],
+                              iconAnchor: [9, 9]
+                            })}
+                          >
+                            <Popup>
+                              <div className="text-xs">
+                                <p className="font-bold">🟢 Visit Start</p>
+                                <p>{v.staff_name || v.lead_name}</p>
+                                <p className="text-gray-500">{safeFormat(v.started_at, 'hh:mm a')}</p>
+                              </div>
+                            </Popup>
+                          </Marker>
+                        )}
+                        {/* Check-in pings along the route */}
+                        {v.checkins.map((c, idx) => (
+                          <Marker 
+                            key={`ping-${v.id}-${idx}`} 
+                            position={[c.lat, c.lng]}
+                            icon={L.divIcon({
+                              className: '',
+                              html: `<div style="
+                                width:12px;height:12px;background:${trailColor};border-radius:50%;
+                                border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.25);
+                                display:flex;align-items:center;justify-content:center;
+                                color:#fff;font-size:7px;font-weight:700;
+                              ">${idx + 1}</div>`,
+                              iconSize: [12, 12],
+                              iconAnchor: [6, 6]
+                            })}
+                          >
+                            <Popup>
+                              <div className="text-xs">
+                                <p className="font-bold">📍 Check-in #{idx + 1}</p>
+                                {c.note && <p>{c.note}</p>}
+                                <p className="text-gray-500">{c.timestamp ? new Date(c.timestamp).toLocaleTimeString() : ''}</p>
+                              </div>
+                            </Popup>
+                          </Marker>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })
                 }
 
                 {/* Show leads locations if any */}

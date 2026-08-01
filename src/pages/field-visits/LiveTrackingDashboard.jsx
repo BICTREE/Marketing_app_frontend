@@ -193,8 +193,10 @@ const LiveTrackingDashboard = () => {
                 center={mapCenter}
                 height="500px"
                 markers={[
-                  ...liveLocations.map(loc => ({
+                  ...liveLocations.map((loc, i) => ({
                     ...loc,
+                    name: loc.staff_name || 'Staff',
+                    user_name: loc.staff_name,
                     type: 'staff',
                     is_active: true
                   })),
