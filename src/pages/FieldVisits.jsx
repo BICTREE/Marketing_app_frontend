@@ -883,7 +883,7 @@ const FieldVisitsPage = () => {
                       <MapPin className="h-4 w-4" />
                       <span className="text-sm font-medium">Start Location:</span>
                       <span className="text-sm">
-                        {selectedVisit.start_lat.toFixed(6)}, {selectedVisit.start_lng.toFixed(6)}
+                        {Number(selectedVisit.start_lat).toFixed(6)}, {Number(selectedVisit.start_lng).toFixed(6)}
                       </span>
                     </div>
                     {selectedVisit.end_lat && selectedVisit.end_lng && (
@@ -891,7 +891,7 @@ const FieldVisitsPage = () => {
                         <MapPin className="h-4 w-4" />
                         <span className="text-sm font-medium">End Location:</span>
                         <span className="text-sm">
-                          {selectedVisit.end_lat.toFixed(6)}, {selectedVisit.end_lng.toFixed(6)}
+                          {Number(selectedVisit.end_lat).toFixed(6)}, {Number(selectedVisit.end_lng).toFixed(6)}
                         </span>
                       </div>
                     )}
