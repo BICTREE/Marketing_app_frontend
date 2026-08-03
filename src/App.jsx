@@ -114,7 +114,6 @@ const AppRoutes = () => {
           <Route path="/staff/leads" element={<Leads />} />
           <Route path="/staff/leads/:id" element={<CustomerProfile />} />
           <Route path="/staff/calls" element={<Calls />} />
-          <Route path="/staff/sales" element={<Sales />} />
           <Route path="/staff/attendance" element={<StaffAttendance />} />
           <Route path="/staff/field-visits" element={<StaffFieldVisits />} />
           <Route path="/staff/customers" element={<Customers />} />

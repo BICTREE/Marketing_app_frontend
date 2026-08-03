@@ -23,7 +23,7 @@ const StaffLayout = () => {
     { label: 'Leads', icon: Users, path: '/staff/leads', permission: 'leads:view' },
     { label: 'Follow-ups', icon: CalendarCheck, path: '/staff/followups', permission: 'leads:view' },
     { label: 'Calls', icon: PhoneCall, path: '/staff/calls', permission: 'calls:view', roles: ['owner', 'manager', 'sub_manager', 'telecaller'] },
-    { label: 'Sales', icon: Gem, path: '/staff/sales', permission: 'sales:view', roles: ['owner', 'manager', 'sub_manager', 'staff'] },
+    { label: 'Sales', icon: Gem, path: '/staff/sales', permission: 'sales:view', roles: ['owner', 'manager', 'sub_manager'] },
     { label: 'Visits', icon: MapPin, path: '/staff/field-visits', permission: 'field_visits:view', roles: ['owner', 'manager', 'sub_manager', 'field_staff'] },
     { label: 'Attendance', icon: CalendarCheck, path: '/staff/attendance', permission: 'attendance:view' },
     { label: 'Profile', icon: User, path: '/staff/profile', permission: 'profile:view' },
