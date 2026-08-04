@@ -112,6 +112,28 @@ const BranchesPage = () => {
     resolver: zodResolver(branchSchema)
   });
 
+  const createMutation = useMutation({
+    mutationFn: (newBranch) => api.post('/branches/', newBranch),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['branches'] });
+      setIsDialogOpen(false);
+      reset();
+    }
+  });
+
+  const onSubmit = (data) => {
+    if (companiesData && companiesData.length > 0) {
+      data.company = companiesData[0].id;
+    }
+    if (!data.lat || data.lat.trim() === '') {
+      delete data.lat;
+    }
+    if (!data.lng || data.lng.trim() === '') {
+      delete data.lng;
+    }
+    createMutation.mutate(data);
+  };
+
   const [editingBranch, setEditingBranch] = useState(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
