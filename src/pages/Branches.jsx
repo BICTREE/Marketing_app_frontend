@@ -112,6 +112,10 @@ const BranchesPage = () => {
     resolver: zodResolver(branchSchema)
   });
 
+  const segmentForm = useForm({
+    resolver: zodResolver(segmentSchema)
+  });
+
   const createMutation = useMutation({
     mutationFn: (newBranch) => api.post('/branches/', newBranch),
     onSuccess: () => {
