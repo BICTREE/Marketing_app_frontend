@@ -105,16 +105,54 @@ const AttendancePage = () => {
     enabled: !!user?.branch
   });
   
+  // Search and Date filters for Managers
+  const [searchName, setSearchName] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('all');
+  const [previewPhoto, setPreviewPhoto] = useState(null);
+
   // 1. Fetch Management Data (for Owners/Managers)
   const { data: managementAttendance, isLoading: isManagementLoading } = useQuery({
-    queryKey: ['attendance-management', selectedBranch],
+    queryKey: ['attendance-management', selectedBranch, selectedDate, selectedStatus],
     queryFn: () => {
       const params = new URLSearchParams();
       if (selectedBranch !== 'all') params.set('branch', selectedBranch);
+      if (selectedDate) params.set('date', selectedDate);
+      if (selectedStatus !== 'all') params.set('status', selectedStatus);
       return api.get(`/attendance/attendance/?${params.toString()}`).then(res => res.data.results || res.data);
     },
     enabled: canManageAttendance
   });
+
+  // Approve Attendance Mutation
+  const approveMutation = useMutation({
+    mutationFn: (id) => api.patch(`/attendance/attendance/${id}/approve/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-management'] });
+      toast.success('Attendance record approved!');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to approve attendance');
+    }
+  });
+
+  // Reject Attendance Mutation
+  const rejectMutation = useMutation({
+    mutationFn: (id) => api.patch(`/attendance/attendance/${id}/reject/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-management'] });
+      toast.success('Attendance record rejected!');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to reject attendance');
+    }
+  });
+
+  // Filter pending requests
+  const pendingRequests = React.useMemo(() => {
+    if (!managementAttendance || !Array.isArray(managementAttendance)) return [];
+    return managementAttendance.filter(r => r.status === 'pending');
+  }, [managementAttendance]);
 
   // 2. Fetch User's Today Record (for Punch-in UI - ALL users)
   const { data: todayRecord, isLoading: isTodayLoading } = useQuery({
@@ -521,10 +559,135 @@ const AttendancePage = () => {
         </Card>
       )}
 
+      {/* Pending Attendance Approvals Section for Managers */}
+      {canManageAttendance && pendingRequests.length > 0 && (
+        <Card className="shadow-sm border-amber-300 bg-amber-50/20">
+          <CardHeader className="bg-amber-100/50 border-b border-amber-200">
+            <CardTitle className="text-amber-900 text-base font-bold flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Info size={18} className="text-amber-600" /> Pending Attendance Approvals ({pendingRequests.length})
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-amber-100/30">
+                  <TableRow>
+                    <TableHead className="font-bold text-amber-900">Staff Name</TableHead>
+                    <TableHead className="font-bold text-amber-900">Branch & Date</TableHead>
+                    <TableHead className="font-bold text-amber-900">Check-in Method</TableHead>
+                    <TableHead className="font-bold text-amber-900">Distance / Notes</TableHead>
+                    <TableHead className="font-bold text-amber-900">Selfie Photo</TableHead>
+                    <TableHead className="font-bold text-amber-900 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingRequests.map((record) => (
+                    <TableRow key={`pending-${record.id}`} className="hover:bg-amber-50/50">
+                      <TableCell className="font-bold text-gray-900">{record.user_name || 'Staff'}</TableCell>
+                      <TableCell>
+                        <div className="text-xs font-semibold">
+                          <p>{record.branch_name || 'Main Branch'}</p>
+                          <p className="text-muted-foreground">{record.date}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="px-2 py-1 rounded text-xs font-bold bg-blue-100 text-blue-800">
+                          {record.check_in_type === 'photo' ? '📸 Selfie Photo' : '📍 Remote GPS'}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <p className="font-bold text-amber-800">
+                          {record.distance_from_branch ? `${Math.round(record.distance_from_branch)}m away` : 'Remote'}
+                        </p>
+                        {record.notes && <p className="text-muted-foreground italic truncate max-w-[200px]">"{record.notes}"</p>}
+                      </TableCell>
+                      <TableCell>
+                        {record.photo ? (
+                          <button
+                            type="button"
+                            onClick={() => setPreviewPhoto(record.photo)}
+                            className="text-xs text-primary font-bold hover:underline flex items-center gap-1 bg-primary/10 px-2 py-1 rounded"
+                          >
+                            🖼️ View Selfie
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground italic">No photo</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white font-bold h-8 text-xs"
+                            onClick={() => approveMutation.mutate(record.id)}
+                            disabled={approveMutation.isPending}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-8 text-xs font-bold"
+                            onClick={() => rejectMutation.mutate(record.id)}
+                            disabled={rejectMutation.isPending}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* History Table */}
       <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle>{canManageAttendance ? 'Team Attendance' : 'Attendance History'}</CardTitle>
+        <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <CardTitle>{canManageAttendance ? 'Team Attendance Sheet & Audit Logs' : 'Attendance History'}</CardTitle>
+          
+          {/* Manager Filters */}
+          {canManageAttendance && (
+            <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              <input
+                type="text"
+                placeholder="Search staff name..."
+                value={searchName}
+                onChange={(e) => setSearchName(e.target.value)}
+                className="px-3 py-1.5 border rounded-md text-xs bg-background w-full sm:w-44"
+              />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="px-3 py-1.5 border rounded-md text-xs bg-background"
+              />
+              {selectedDate && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate('')}
+                  className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+                >
+                  Clear Date
+                </button>
+              )}
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value)}
+                className="px-3 py-1.5 border rounded-md text-xs bg-background"
+              >
+                <option value="all">All Statuses</option>
+                <option value="present">Present</option>
+                <option value="pending">Pending</option>
+                <option value="rejected">Rejected</option>
+              </select>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -541,7 +704,8 @@ const AttendancePage = () => {
                       <TableHead>Status</TableHead>
                       <TableHead>Check In</TableHead>
                       <TableHead>Check Out</TableHead>
-                      {canManageAttendance ? <TableHead>Location</TableHead> : null}
+                      <TableHead>Audit Log / Approval</TableHead>
+                      {canManageAttendance ? <TableHead className="text-right">Actions</TableHead> : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -560,7 +724,7 @@ const AttendancePage = () => {
                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             record.status === 'present'  ? 'bg-green-100 text-green-700 border border-green-200' :
                             record.status === 'late'     ? 'bg-amber-100 text-amber-700 border border-amber-200' :
-                            record.status === 'pending'  ? 'bg-blue-100 text-blue-700 border border-blue-200' :
+                            record.status === 'pending'  ? 'bg-amber-100 text-amber-800 border border-amber-300' :
                             record.status === 'rejected' ? 'bg-red-100 text-red-700 border border-red-200' :
                             'bg-gray-100 text-gray-700 border border-gray-200'
                           }`}>
@@ -569,20 +733,49 @@ const AttendancePage = () => {
                         </TableCell>
                         <TableCell className="font-medium text-gray-600">{safeFormat(record.check_in_time, 'hh:mm a')}</TableCell>
                         <TableCell className="font-medium text-gray-600">{safeFormat(record.check_out_time, 'hh:mm a')}</TableCell>
+                        <TableCell className="text-xs">
+                          {record.approved_by_name ? (
+                            <span className="text-green-700 font-bold flex items-center gap-1">
+                              <CheckCircle size={13} /> Approved by {record.approved_by_name}
+                            </span>
+                          ) : record.status === 'present' ? (
+                            <span className="text-muted-foreground font-medium">⚡ Auto-approved (GPS)</span>
+                          ) : record.status === 'pending' ? (
+                            <span className="text-amber-700 font-bold">🟡 Pending Manager Review</span>
+                          ) : (
+                            <span className="text-red-600 font-medium">Rejected</span>
+                          )}
+                        </TableCell>
                         {canManageAttendance ? (
-                          <TableCell>
-                            {record.check_in_lat && record.check_in_lng ? (
+                          <TableCell className="text-right">
+                            {record.status === 'pending' ? (
+                              <div className="flex items-center justify-end gap-1">
+                                <Button
+                                  size="xs"
+                                  className="bg-green-600 hover:bg-green-700 text-white font-bold h-7 text-[11px] px-2"
+                                  onClick={() => approveMutation.mutate(record.id)}
+                                >
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="xs"
+                                  variant="destructive"
+                                  className="h-7 text-[11px] px-2 font-bold"
+                                  onClick={() => rejectMutation.mutate(record.id)}
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : record.check_in_lat && record.check_in_lng ? (
                               <a 
                                 href={`https://www.google.com/maps?q=${record.check_in_lat},${record.check_in_lng}`} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-1 text-xs text-primary hover:underline font-medium"
+                                className="flex items-center justify-end gap-1 text-xs text-primary hover:underline font-medium"
                               >
-                                <MapPin size={12} /> View Map
+                                <MapPin size={12} /> Map
                               </a>
-                            ) : (
-                              <span className="text-xs text-muted-foreground italic">No GPS</span>
-                            )}
+                            ) : null}
                           </TableCell>
                         ) : null}
                       </TableRow>
@@ -660,6 +853,32 @@ const AttendancePage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Selfie Photo Preview Modal */}
+      {previewPhoto && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setPreviewPhoto(null)}
+        >
+          <div className="relative max-w-xl w-full bg-background rounded-xl p-4 border border-border shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-3 pb-2 border-b border-border">
+              <h3 className="font-bold text-sm text-foreground">Staff Selfie Photo Verification</h3>
+              <button 
+                type="button"
+                onClick={() => setPreviewPhoto(null)}
+                className="text-muted-foreground hover:text-foreground font-bold text-base px-2"
+              >
+                ✕
+              </button>
+            </div>
+            <img 
+              src={previewPhoto} 
+              alt="Staff Selfie Verification" 
+              className="w-full max-h-[70vh] object-contain rounded-lg border border-border bg-black/5"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
