@@ -901,7 +901,7 @@ const TeamPage = () => {
                                       type="checkbox"
                                       id={field}
                                       {...permissionsForm.register(field)}
-                                      disabled={user?.role !== 'owner'}
+                                      disabled={user?.role !== 'owner' && user?.role !== 'admin'}
                                       className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
                                     <Label htmlFor={field} className="text-sm font-medium cursor-pointer">
@@ -913,7 +913,7 @@ const TeamPage = () => {
                             </Card>
                           ))}
                         </div>
-                        {isOwner && (
+                        {(isOwner || user?.role === 'admin') && (
                           <div className="flex justify-end pt-4">
                             <Button type="submit" disabled={permissionsMutation.isPending}>
                               {permissionsMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : <Shield size={16} className="mr-2" />}
