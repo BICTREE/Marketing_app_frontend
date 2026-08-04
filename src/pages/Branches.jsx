@@ -112,33 +112,47 @@ const BranchesPage = () => {
     resolver: zodResolver(branchSchema)
   });
 
-  const segmentForm = useForm({
-    resolver: zodResolver(segmentSchema)
-  });
+  const [editingBranch, setEditingBranch] = useState(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
-  const createMutation = useMutation({
-    mutationFn: (newBranch) => api.post('/branches/', newBranch),
+  // Edit Branch Mutation
+  const editBranchMutation = useMutation({
+    mutationFn: async ({ id, data, scheduleData }) => {
+      // 1. Update Branch Details
+      await api.patch(`/branches/${id}/`, data);
+      
+      // 2. Save Branch Shift Timing Schedule
+      if (scheduleData) {
+        try {
+          const res = await api.get(`/attendance/schedules/?branch=${id}`);
+          const list = res.data.results || res.data;
+          if (Array.isArray(list) && list.length > 0) {
+            await api.patch(`/attendance/schedules/${list[0].id}/`, {
+              branch: id,
+              check_in_time: scheduleData.check_in_time,
+              check_out_time: scheduleData.check_out_time,
+              grace_period_minutes: scheduleData.grace_period_minutes,
+            });
+          } else {
+            await api.post('/attendance/schedules/', {
+              branch: id,
+              name: `${data.name || 'Branch'} Shift Schedule`,
+              check_in_time: scheduleData.check_in_time,
+              check_out_time: scheduleData.check_out_time,
+              grace_period_minutes: scheduleData.grace_period_minutes,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to update shift schedule", e);
+        }
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['branches'] });
-      setIsDialogOpen(false);
-      reset();
+      setIsEditDialogOpen(false);
+      setEditingBranch(null);
     }
   });
-
-  const onSubmit = (data) => {
-    // If we have companies, attach the first company ID
-    if (companiesData && companiesData.length > 0) {
-      data.company = companiesData[0].id;
-    }
-    // Clean up empty optional fields so they don't cause backend decimal validation errors
-    if (!data.lat || data.lat.trim() === '') {
-      delete data.lat;
-    }
-    if (!data.lng || data.lng.trim() === '') {
-      delete data.lng;
-    }
-    createMutation.mutate(data);
-  };
 
   const createSegmentMutation = useMutation({
     mutationFn: (newSegment) => api.post('/branches/segments/', newSegment),
@@ -329,20 +343,50 @@ const BranchesPage = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Phone</TableHead>
+                  <TableHead>Branch Name & Staff</TableHead>
+                  <TableHead>Address & Geofence Location</TableHead>
+                  <TableHead>Shift Punch-Out Timing</TableHead>
+                  <TableHead>Phone / Manager</TableHead>
                   <TableHead>Segments</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {branchesData?.length > 0 ? branchesData.map((branch) => (
-                  <TableRow key={branch.id}>
-                    <TableCell className="font-medium">{branch.name}</TableCell>
-                    <TableCell>{branch.address}</TableCell>
-                    <TableCell>{branch.phone}</TableCell>
-                    <TableCell>{branch.company_name || 'Bindu Jewellery'}</TableCell>
+                  <TableRow key={branch.id} className="hover:bg-muted/30">
+                    <TableCell className="font-medium">
+                      <div>
+                        <p className="font-bold text-foreground">{branch.name}</p>
+                        <span className="inline-flex items-center gap-1 mt-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                          <Users size={12} /> {branch.staff_count || 0} Assigned Staff
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">
+                        <p className="font-medium">{branch.address}</p>
+                        {branch.lat && branch.lng ? (
+                          <p className="text-[11px] text-muted-foreground mt-0.5 flex items-center gap-1 font-mono">
+                            <MapPin size={11} className="text-primary" /> {branch.lat}, {branch.lng} (100m Geofence)
+                          </p>
+                        ) : (
+                          <span className="text-[10px] text-amber-700 italic">No GPS set</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">
+                        <p className="font-bold text-amber-900 bg-amber-50 px-2 py-1 rounded border border-amber-200 inline-block">
+                          ⏰ Shift: {branch.shift_check_in_time || '09:30'} — {branch.shift_check_out_time || '19:00'}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">
+                        <p className="font-semibold">{branch.phone || '—'}</p>
+                        {branch.manager_name && <p className="text-muted-foreground">Mgr: {branch.manager_name}</p>}
+                      </div>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         {branch.segments?.map(seg => (
@@ -356,9 +400,27 @@ const BranchesPage = () => {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="outline" size="sm" onClick={() => openSegmentModal(branch)}>
-                        Manage Segments
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold h-8 text-xs"
+                          onClick={() => {
+                            setEditingBranch({
+                              ...branch,
+                              shift_check_in_time: branch.shift_check_in_time || '09:30',
+                              shift_check_out_time: branch.shift_check_out_time || '19:00',
+                              shift_grace_period: branch.shift_grace_period || 15,
+                            });
+                            setIsEditDialogOpen(true);
+                          }}
+                        >
+                          ✏️ Edit Branch
+                        </Button>
+                        <Button variant="outline" size="sm" className="h-8 text-xs font-semibold" onClick={() => openSegmentModal(branch)}>
+                          Manage Segments
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )) : (
@@ -373,6 +435,139 @@ const BranchesPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Branch & Shift Schedule Dialog Modal */}
+      {editingBranch && (
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-xl" aria-describedby={undefined}>
+            <DialogHeader>
+              <DialogTitle className="font-bold text-lg text-foreground">Edit Branch & Shift Timings — {editingBranch.name}</DialogTitle>
+            </DialogHeader>
+            
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                editBranchMutation.mutate({
+                  id: editingBranch.id,
+                  data: {
+                    name: editingBranch.name,
+                    address: editingBranch.address,
+                    phone: editingBranch.phone,
+                    lat: editingBranch.lat || null,
+                    lng: editingBranch.lng || null,
+                  },
+                  scheduleData: {
+                    check_in_time: editingBranch.shift_check_in_time,
+                    check_out_time: editingBranch.shift_check_out_time,
+                    grace_period_minutes: editingBranch.shift_grace_period,
+                  }
+                });
+              }} 
+              className="space-y-4 pt-2"
+            >
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">Branch Name *</Label>
+                  <Input 
+                    value={editingBranch.name || ''} 
+                    onChange={(e) => setEditingBranch({ ...editingBranch, name: e.target.value })}
+                    required 
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-bold">Phone Number</Label>
+                  <Input 
+                    value={editingBranch.phone || ''} 
+                    onChange={(e) => setEditingBranch({ ...editingBranch, phone: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs font-bold">Full Physical Address *</Label>
+                <Input 
+                  value={editingBranch.address || ''} 
+                  onChange={(e) => setEditingBranch({ ...editingBranch, address: e.target.value })}
+                  required 
+                />
+              </div>
+
+              {/* Geofence GPS Coordinates */}
+              <div className="p-3 bg-muted/40 rounded-lg border border-border space-y-2">
+                <Label className="text-xs font-bold text-primary flex items-center gap-1">
+                  <MapPin size={14} /> Geofence GPS Coordinates (100m Office Proximity)
+                </Label>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Latitude</Label>
+                    <Input 
+                      placeholder="e.g. 12.9716"
+                      value={editingBranch.lat || ''} 
+                      onChange={(e) => setEditingBranch({ ...editingBranch, lat: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] text-muted-foreground">Longitude</Label>
+                    <Input 
+                      placeholder="e.g. 77.5946"
+                      value={editingBranch.lng || ''} 
+                      onChange={(e) => setEditingBranch({ ...editingBranch, lng: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Shift Timing Settings */}
+              <div className="p-3 bg-amber-50/50 rounded-lg border border-amber-200 space-y-2">
+                <Label className="text-xs font-bold text-amber-900 flex items-center gap-1">
+                  ⏰ Branch Shift Timings & Punch-Out Schedule
+                </Label>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <Label className="text-[11px] text-amber-900 font-medium">Check-in Start Time</Label>
+                    <input 
+                      type="time" 
+                      value={editingBranch.shift_check_in_time || '09:30'} 
+                      onChange={(e) => setEditingBranch({ ...editingBranch, shift_check_in_time: e.target.value })}
+                      className="w-full px-2 py-1 border rounded text-xs bg-background"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] text-amber-900 font-bold">Punch-Out Time *</Label>
+                    <input 
+                      type="time" 
+                      value={editingBranch.shift_check_out_time || '19:00'} 
+                      onChange={(e) => setEditingBranch({ ...editingBranch, shift_check_out_time: e.target.value })}
+                      className="w-full px-2 py-1 border border-amber-400 font-bold rounded text-xs bg-background text-amber-900"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-[11px] text-amber-900 font-medium">Grace Period (Mins)</Label>
+                    <Input 
+                      type="number"
+                      value={editingBranch.shift_grace_period || 15} 
+                      onChange={(e) => setEditingBranch({ ...editingBranch, shift_grace_period: parseInt(e.target.value) || 15 })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold" disabled={editBranchMutation.isPending}>
+                  {editBranchMutation.isPending ? <Loader2 className="animate-spin mr-2" /> : null}
+                  Save Branch Changes
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Segments Dialog */}
       <Dialog open={isSegmentDialogOpen} onOpenChange={setIsSegmentDialogOpen}>
