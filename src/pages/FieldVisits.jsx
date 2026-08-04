@@ -452,29 +452,29 @@ const FieldVisitsPage = () => {
                   Live Field GPS Tracking & Staff Travel Roadmap
                 </CardTitle>
                 <p className="text-xs text-muted-foreground">
-                  Real-time movement points, waypoints, and polyline travel route history.
+                  Click any map point to open in Google Maps. Colored polyline shows the exact travel route.
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
               {/* Staff Roadmap Route Selector */}
-              <div className="flex items-center gap-1 bg-background px-2.5 py-1 rounded-lg border border-border">
-                <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">🗺️ Staff Roadmap:</span>
+              <div className="flex items-center gap-1.5 bg-background px-2.5 py-1.5 rounded-lg border border-border">
+                <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">🗺️ View Roadmap:</span>
                 <select
                   value={selectedTrackedStaff}
                   onChange={(e) => setSelectedTrackedStaff(e.target.value)}
-                  className="text-xs font-bold bg-transparent outline-none cursor-pointer"
+                  className="text-xs font-bold bg-transparent outline-none cursor-pointer max-w-[200px]"
                 >
-                  <option value="all">📍 All Active Field Staff ({liveTrackingData?.length || 0})</option>
+                  <option value="all">📍 All Active Live Pins ({liveTrackingData?.length || 0})</option>
                   {liveTrackingData?.map(loc => (
                     <option key={loc.staff_id} value={loc.staff_id}>
-                      🟢 {loc.staff_name} ({loc.lead_name ? `Visiting ${loc.lead_name}` : 'On Field'})
+                      🟢 {loc.staff_name}
                     </option>
                   ))}
-                  {staffData?.map(s => (
-                    <option key={s.id} value={s.id}>
-                      👤 {s.full_name} ({s.role_display || s.role})
+                  {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff').map(s => (
+                    <option key={`staff-${s.id}`} value={s.id}>
+                      👤 {s.full_name} (Route History)
                     </option>
                   ))}
                 </select>
@@ -486,8 +486,31 @@ const FieldVisitsPage = () => {
               </div>
             </div>
           </CardHeader>
+
+          {/* Map Legend */}
+          {selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0 && (
+            <div className="px-4 py-2.5 bg-muted/10 border-b border-border/40 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+              <span className="font-bold text-foreground">Route Legend:</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-5 h-1.5 rounded-full bg-emerald-500 inline-block" /> Start Point
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-1.5 rounded-full bg-blue-500 inline-block" style={{ background: 'linear-gradient(to right, #10B981, #3B82F6, #8B5CF6)' }} /> Travel Route
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-full bg-blue-500 border-2 border-white inline-block shadow" /> GPS Waypoint
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-4 h-4 rounded-full bg-red-500 border-2 border-white inline-block shadow" /> Current Position
+              </span>
+              <span className="ml-auto font-semibold">
+                {staffLocationTrail.length} GPS pings recorded
+              </span>
+            </div>
+          )}
+
           <CardContent className="p-0">
-            <div className="h-[440px] w-full relative z-0">
+            <div className="h-[460px] w-full relative z-0">
               <MapContainer
                 center={
                   selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
@@ -496,7 +519,7 @@ const FieldVisitsPage = () => {
                     ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
                     : [8.5241, 76.9366]
                 }
-                zoom={14}
+                zoom={15}
                 style={{ height: '100%', width: '100%', zIndex: 0 }}
               >
                 <TileLayer
@@ -504,86 +527,208 @@ const FieldVisitsPage = () => {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                <MapRecenter 
+                <MapRecenter
                   center={
                     selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
                       ? [parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude), parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude)]
                       : liveTrackingData?.[0]
                       ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
                       : null
-                  } 
+                  }
                 />
 
-                {/* ── 1. SELECTED STAFF DAILY ROADMAP POLYLINE TRAIL ─────────────────────── */}
-                {selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0 && (
-                  <React.Fragment>
-                    {/* Glowing Polyline Route Path */}
-                    <Polyline 
-                      positions={staffLocationTrail.map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)])}
-                      color="#10B981"
-                      weight={6}
-                      opacity={0.8}
-                    />
-                    <Polyline 
-                      positions={staffLocationTrail.map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)])}
-                      color="#ffffff"
-                      weight={2}
-                      dashArray="5, 10"
-                      opacity={0.9}
-                    />
+                {/* ── 1. SELECTED STAFF DAILY ROADMAP POLYLINE TRAIL ──────────────────── */}
+                {selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 1 && (() => {
+                  const TRAIL_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
+                  // Segment the trail into color-shifting segments to show road direction
+                  const trailPoints = staffLocationTrail.map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)]);
+                  const segmentSize = Math.max(1, Math.ceil(trailPoints.length / TRAIL_COLORS.length));
+                  
+                  return (
+                    <React.Fragment>
+                      {/* Thick shadow polyline for visibility */}
+                      <Polyline
+                        positions={trailPoints}
+                        color="rgba(0,0,0,0.15)"
+                        weight={10}
+                        opacity={1}
+                      />
+                      {/* Colored gradient segments — each section changes color */}
+                      {TRAIL_COLORS.map((color, segIdx) => {
+                        const start = segIdx * segmentSize;
+                        const end = Math.min(start + segmentSize + 1, trailPoints.length);
+                        if (start >= trailPoints.length - 1) return null;
+                        return (
+                          <Polyline
+                            key={`seg-${segIdx}`}
+                            positions={trailPoints.slice(start, end)}
+                            color={color}
+                            weight={5}
+                            opacity={0.9}
+                          />
+                        );
+                      })}
+                      {/* White dashed center line for road-like appearance */}
+                      <Polyline
+                        positions={trailPoints}
+                        color="#ffffff"
+                        weight={1.5}
+                        dashArray="6, 14"
+                        opacity={0.7}
+                      />
 
-                    {/* Start Location Pin */}
-                    {staffLocationTrail[0] && (
+                      {/* 🏁 Start Pin */}
                       <Marker
-                        position={[parseFloat(staffLocationTrail[0].latitude), parseFloat(staffLocationTrail[0].longitude)]}
+                        position={trailPoints[0]}
                         icon={L.divIcon({
-                          className: 'custom-start-marker',
-                          html: `<div style="background:#10B981;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🏁 Start</div>`,
-                          iconSize: [50, 24],
-                          iconAnchor: [25, 24]
+                          className: '',
+                          html: `<div style="
+                            background:#10B981;color:#fff;font-size:11px;font-weight:800;
+                            padding:4px 10px;border-radius:20px;white-space:nowrap;
+                            border:2.5px solid #fff;box-shadow:0 3px 10px rgba(16,185,129,0.5);
+                            display:flex;align-items:center;gap:4px;
+                          ">🏁 Start</div>`,
+                          iconSize: [62, 28],
+                          iconAnchor: [31, 28]
                         })}
                       >
-                        <Popup>
-                          <div className="text-xs">
-                            <p className="font-bold text-emerald-800">🏁 Field Shift Start Point</p>
-                            <p className="text-muted-foreground">{new Date(staffLocationTrail[0].timestamp).toLocaleTimeString()}</p>
+                        <Popup maxWidth={240}>
+                          <div style={{ minWidth: 200, fontFamily: 'system-ui' }}>
+                            <div style={{ background: '#10B981', color: '#fff', padding: '8px 12px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0' }}>
+                              <strong style={{ fontSize: 13 }}>🏁 Journey Start Point</strong>
+                            </div>
+                            <p style={{ fontSize: 12, margin: '4px 0' }}><strong>Time:</strong> {new Date(staffLocationTrail[0].timestamp).toLocaleString()}</p>
+                            <p style={{ fontSize: 11, color: '#666', margin: '4px 0' }}>
+                              📍 {parseFloat(staffLocationTrail[0].latitude).toFixed(6)}, {parseFloat(staffLocationTrail[0].longitude).toFixed(6)}
+                            </p>
+                            <a
+                              href={`https://www.google.com/maps?q=${staffLocationTrail[0].latitude},${staffLocationTrail[0].longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ display: 'inline-block', marginTop: 8, background: '#4285f4', color: '#fff', fontSize: 11, padding: '4px 10px', borderRadius: 6, textDecoration: 'none', fontWeight: 700 }}
+                            >
+                              🗺️ Open in Google Maps
+                            </a>
                           </div>
                         </Popup>
                       </Marker>
-                    )}
 
-                    {/* Intermediate Waypoint Pings */}
-                    {staffLocationTrail.slice(1, -1).map((pt, idx) => (
-                      <Marker
-                        key={`trail-pt-${pt.id || idx}`}
-                        position={[parseFloat(pt.latitude), parseFloat(pt.longitude)]}
-                        icon={L.divIcon({
-                          className: 'custom-waypoint-marker',
-                          html: `<div style="width:10px;height:10px;background:#3B82F6;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`,
-                          iconSize: [10, 10],
-                          iconAnchor: [5, 5]
-                        })}
-                      >
-                        <Popup>
-                          <div className="text-xs">
-                            <p className="font-bold">📍 Waypoint #{idx + 1}</p>
-                            <p className="text-muted-foreground">{new Date(pt.timestamp).toLocaleTimeString()}</p>
-                          </div>
-                        </Popup>
-                      </Marker>
-                    ))}
-                  </React.Fragment>
-                )}
+                      {/* 📍 Numbered Waypoint Pings */}
+                      {staffLocationTrail.slice(1, -1).map((pt, idx) => {
+                        const colorIdx = Math.floor(idx / segmentSize) % TRAIL_COLORS.length;
+                        const dotColor = TRAIL_COLORS[colorIdx];
+                        return (
+                          <Marker
+                            key={`trail-pt-${pt.id || idx}`}
+                            position={[parseFloat(pt.latitude), parseFloat(pt.longitude)]}
+                            icon={L.divIcon({
+                              className: '',
+                              html: `<div style="
+                                width:20px;height:20px;background:${dotColor};border-radius:50%;
+                                border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);
+                                display:flex;align-items:center;justify-content:center;
+                                color:#fff;font-size:8px;font-weight:800;cursor:pointer;
+                              ">${idx + 1}</div>`,
+                              iconSize: [20, 20],
+                              iconAnchor: [10, 10]
+                            })}
+                          >
+                            <Popup maxWidth={240}>
+                              <div style={{ minWidth: 200, fontFamily: 'system-ui' }}>
+                                <div style={{ background: dotColor, color: '#fff', padding: '6px 12px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0' }}>
+                                  <strong style={{ fontSize: 12 }}>📍 GPS Waypoint #{idx + 1}</strong>
+                                </div>
+                                <p style={{ fontSize: 12, margin: '4px 0' }}><strong>Time:</strong> {new Date(pt.timestamp).toLocaleTimeString()}</p>
+                                <p style={{ fontSize: 11, color: '#666', margin: '4px 0' }}>
+                                  {parseFloat(pt.latitude).toFixed(6)}, {parseFloat(pt.longitude).toFixed(6)}
+                                </p>
+                                {pt.accuracy && <p style={{ fontSize: 10, color: '#999', margin: '2px 0' }}>GPS Accuracy: ±{Math.round(pt.accuracy)}m</p>}
+                                <a
+                                  href={`https://www.google.com/maps?q=${pt.latitude},${pt.longitude}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ display: 'inline-block', marginTop: 8, background: '#4285f4', color: '#fff', fontSize: 11, padding: '4px 10px', borderRadius: 6, textDecoration: 'none', fontWeight: 700 }}
+                                >
+                                  🗺️ Open in Google Maps
+                                </a>
+                              </div>
+                            </Popup>
+                          </Marker>
+                        );
+                      })}
 
-                {/* ── 2. LIVE FIELD STAFF MAP PINS ────────────────────────────────────── */}
+                      {/* 🔴 Current Position (Last GPS Point) */}
+                      {trailPoints.length > 1 && (
+                        <Marker
+                          position={trailPoints[trailPoints.length - 1]}
+                          icon={L.divIcon({
+                            className: '',
+                            html: `
+                              <div style="display:flex;flex-direction:column;align-items:center;">
+                                <div style="
+                                  background:#EF4444;color:#fff;font-size:10px;font-weight:800;
+                                  padding:3px 9px;border-radius:14px;white-space:nowrap;
+                                  border:2px solid #fff;box-shadow:0 3px 10px rgba(239,68,68,0.5);
+                                ">📍 NOW</div>
+                                <div style="
+                                  width:16px;height:16px;background:#EF4444;border-radius:50%;
+                                  border:3px solid #fff;box-shadow:0 0 0 4px rgba(239,68,68,0.3);
+                                  margin-top:3px;animation:pulse 1.5s ease-in-out infinite;
+                                "></div>
+                              </div>
+                            `,
+                            iconSize: [60, 44],
+                            iconAnchor: [30, 44]
+                          })}
+                        >
+                          <Popup maxWidth={260}>
+                            <div style={{ minWidth: 220, fontFamily: 'system-ui' }}>
+                              <div style={{ background: '#EF4444', color: '#fff', padding: '8px 12px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff', animation: 'pulse 1s infinite' }} />
+                                <strong style={{ fontSize: 13 }}>Current Live Position</strong>
+                              </div>
+                              <p style={{ fontSize: 12, margin: '4px 0', fontWeight: 700, color: '#EF4444' }}>
+                                🔴 Last seen: {new Date(staffLocationTrail[staffLocationTrail.length - 1].timestamp).toLocaleTimeString()}
+                              </p>
+                              <p style={{ fontSize: 11, color: '#666', margin: '4px 0' }}>
+                                {parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude).toFixed(6)},<br/>
+                                {parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude).toFixed(6)}
+                              </p>
+                              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                <a
+                                  href={`https://www.google.com/maps?q=${staffLocationTrail[staffLocationTrail.length - 1].latitude},${staffLocationTrail[staffLocationTrail.length - 1].longitude}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ flex: 1, textAlign: 'center', background: '#4285f4', color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6, textDecoration: 'none', fontWeight: 700 }}
+                                >
+                                  🗺️ Google Maps
+                                </a>
+                                <a
+                                  href={`https://www.google.com/maps/dir/?api=1&destination=${staffLocationTrail[staffLocationTrail.length - 1].latitude},${staffLocationTrail[staffLocationTrail.length - 1].longitude}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ flex: 1, textAlign: 'center', background: '#0F6E56', color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6, textDecoration: 'none', fontWeight: 700 }}
+                                >
+                                  🧭 Navigate
+                                </a>
+                              </div>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      )}
+                    </React.Fragment>
+                  );
+                })()}
+
+                {/* ── 2. LIVE FIELD STAFF MAP PINS (when showing all) ──────────────── */}
                 {liveTrackingData?.map((loc, i) => {
                   const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4'];
                   const color = staffColors[i % staffColors.length];
                   const firstName = (loc.staff_name || 'Staff').split(' ')[0];
-                  
+
                   return (
-                    <Marker 
-                      key={loc.staff_id || i} 
+                    <Marker
+                      key={loc.staff_id || i}
                       position={[loc.latitude, loc.longitude]}
                       icon={L.divIcon({
                         className: 'custom-staff-marker',
@@ -607,22 +752,38 @@ const FieldVisitsPage = () => {
                         popupAnchor: [0, -50]
                       })}
                     >
-                      <Popup>
-                        <div className="text-sm min-w-[200px] space-y-1">
-                          <div className="flex items-center gap-2 border-b pb-1.5 mb-1">
-                            <div style={{ width: 26, height: 26, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 11 }}>
+                      <Popup maxWidth={260}>
+                        <div style={{ minWidth: 220, fontFamily: 'system-ui' }}>
+                          <div style={{ background: color, color: '#fff', padding: '8px 12px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>
                               {(loc.staff_name || '?')[0].toUpperCase()}
                             </div>
                             <div>
-                              <p className="font-bold text-xs leading-none">{loc.staff_name}</p>
-                              <span className="text-[10px] text-emerald-700 font-semibold">🟢 Active Field Staff</span>
+                              <strong style={{ fontSize: 13, display: 'block' }}>{loc.staff_name}</strong>
+                              <span style={{ fontSize: 10, opacity: 0.9 }}>🟢 Active Field Staff</span>
                             </div>
                           </div>
-                          {loc.lead_name && <p className="text-xs font-semibold">📍 Visiting Lead: {loc.lead_name}</p>}
-                          <p className="text-[11px] text-muted-foreground">
-                            🕐 Last Location Ping: {new Date(loc.timestamp).toLocaleTimeString()}
+                          {loc.lead_name && <p style={{ fontSize: 12, margin: '4px 0' }}>📍 <strong>Visiting:</strong> {loc.lead_name}</p>}
+                          <p style={{ fontSize: 11, color: '#666', margin: '4px 0' }}>
+                            🕐 {new Date(loc.timestamp).toLocaleTimeString()}
                           </p>
-                          {loc.accuracy && <p className="text-[10px] text-muted-foreground">GPS Accuracy: ±{Math.round(loc.accuracy)}m</p>}
+                          {loc.accuracy && <p style={{ fontSize: 10, color: '#999', margin: '2px 0' }}>GPS ±{Math.round(loc.accuracy)}m</p>}
+                          <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                            <a
+                              href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ flex: 1, textAlign: 'center', background: '#4285f4', color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6, textDecoration: 'none', fontWeight: 700 }}
+                            >
+                              🗺️ Google Maps
+                            </a>
+                            <button
+                              onClick={() => setSelectedTrackedStaff(String(loc.staff_id))}
+                              style={{ flex: 1, textAlign: 'center', background: color, color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6, border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              🛣️ View Route
+                            </button>
+                          </div>
                         </div>
                       </Popup>
                     </Marker>
