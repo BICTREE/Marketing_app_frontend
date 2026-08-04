@@ -111,47 +111,58 @@ const AttendancePage = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [previewPhoto, setPreviewPhoto] = useState(null);
 
-  // Shift Punch-out Timing settings state for Managers
+  // Check if current user is Admin or Owner
+  const isAdminOrOwner = user?.role === 'owner' || user?.role === 'admin' || user?.is_superuser;
+
+  // Shift Punch-out Timing settings state for Admins & Owners per Branch
   const [shiftCheckOutTime, setShiftCheckOutTime] = useState('19:00');
   const [shiftCheckInTime, setShiftCheckInTime] = useState('09:30');
   const [shiftGracePeriod, setShiftGracePeriod] = useState(15);
   const [isEditingSchedule, setIsEditingSchedule] = useState(false);
 
-  // Fetch Attendance Schedule
+  // Fetch Attendance Schedule for selected branch
   const { data: scheduleData } = useQuery({
-    queryKey: ['attendance-schedules'],
-    queryFn: () => api.get('/attendance/schedules/').then(res => {
-      const list = res.data.results || res.data;
-      if (Array.isArray(list) && list.length > 0) {
-        setShiftCheckOutTime(list[0].check_out_time || '19:00');
-        setShiftCheckInTime(list[0].check_in_time || '09:30');
-        setShiftGracePeriod(list[0].grace_period_minutes || 15);
-        return list[0];
-      }
-      return null;
-    }),
+    queryKey: ['attendance-schedules', selectedBranch],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (selectedBranch !== 'all') params.set('branch', selectedBranch);
+      return api.get(`/attendance/schedules/?${params.toString()}`).then(res => {
+        const list = res.data.results || res.data;
+        if (Array.isArray(list) && list.length > 0) {
+          setShiftCheckOutTime(list[0].check_out_time || '19:00');
+          setShiftCheckInTime(list[0].check_in_time || '09:30');
+          setShiftGracePeriod(list[0].grace_period_minutes || 15);
+          return list[0];
+        }
+        return null;
+      });
+    },
     enabled: canManageAttendance
   });
 
-  // Save / Update Schedule Mutation
+  // Save / Update Schedule Mutation (Restricted to Admin / Owner)
   const saveScheduleMutation = useMutation({
     mutationFn: (data) => {
+      const targetBranch = selectedBranch !== 'all' ? selectedBranch : (user?.branch || 1);
       if (scheduleData?.id) {
-        return api.patch(`/attendance/schedules/${scheduleData.id}/`, data);
+        return api.patch(`/attendance/schedules/${scheduleData.id}/`, {
+          branch: targetBranch,
+          ...data
+        });
       }
       return api.post('/attendance/schedules/', {
-        branch: user?.branch || 1,
-        name: 'Default Shift',
+        branch: targetBranch,
+        name: 'Branch Shift Schedule',
         ...data
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['attendance-schedules'] });
       setIsEditingSchedule(false);
-      toast.success('Shift Punch-Out timing saved successfully!');
+      toast.success('Branch Shift timing saved successfully!');
     },
     onError: (err) => {
-      toast.error(err.response?.data?.detail || 'Failed to save shift timing');
+      toast.error(err.response?.data?.detail || 'Failed to save shift timing. Only Admin/Owner can configure shifts.');
     }
   });
 
@@ -632,66 +643,89 @@ const AttendancePage = () => {
         </Card>
       )}
 
-      {/* Shift Timings & Punch-Out Configuration Card for Owners / Admins / Managers */}
+      {/* Shift Timings & Punch-Out Configuration Card (Admin & Owner Only) */}
       {canManageAttendance && (
         <Card className="shadow-sm border-blue-200 bg-blue-50/10">
           <CardHeader className="bg-blue-50/40 border-b border-blue-100 flex flex-row items-center justify-between py-3">
             <CardTitle className="text-blue-900 text-sm font-bold flex items-center gap-2">
-              <Clock size={16} className="text-blue-600" /> Shift Punch-Out & Workday Timing Settings
+              <Clock size={16} className="text-blue-600" /> Branch Shift Punch-Out & Workday Timing Settings
             </CardTitle>
-            <Button
-              size="xs"
-              variant={isEditingSchedule ? "outline" : "default"}
-              onClick={() => setIsEditingSchedule(!isEditingSchedule)}
-              className="text-xs h-7"
-            >
-              {isEditingSchedule ? 'Cancel' : '⚙️ Configure Shift Time'}
-            </Button>
+            
+            {isAdminOrOwner ? (
+              <Button
+                size="xs"
+                variant={isEditingSchedule ? "outline" : "default"}
+                onClick={() => setIsEditingSchedule(!isEditingSchedule)}
+                className="text-xs h-7 bg-blue-700 hover:bg-blue-800 text-white font-bold"
+              >
+                {isEditingSchedule ? 'Cancel' : '⚙️ Configure Shift Time'}
+              </Button>
+            ) : (
+              <span className="text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded font-semibold">
+                🔒 Admin/Owner Configured
+              </span>
+            )}
           </CardHeader>
           <CardContent className="p-4">
-            {isEditingSchedule ? (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Check-in Start Time</label>
-                  <input
-                    type="time"
-                    value={shiftCheckInTime}
-                    onChange={(e) => setShiftCheckInTime(e.target.value)}
-                    className="w-full px-3 py-1.5 border rounded-md text-xs bg-background"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold font-amber-900 text-gray-700 mb-1">Mandatory Shift Punch-Out Time *</label>
-                  <input
-                    type="time"
-                    value={shiftCheckOutTime}
-                    onChange={(e) => setShiftCheckOutTime(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-amber-400 rounded-md text-xs font-bold bg-background text-amber-900"
-                  />
-                </div>
-
-                <div>
-                  <Button
-                    size="sm"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 text-xs"
-                    onClick={() => saveScheduleMutation.mutate({
-                      check_in_time: shiftCheckInTime,
-                      check_out_time: shiftCheckOutTime,
-                      grace_period_minutes: shiftGracePeriod
-                    })}
-                    disabled={saveScheduleMutation.isPending}
+            {isEditingSchedule && isAdminOrOwner ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 bg-blue-50 p-2 rounded border border-blue-200">
+                  <span className="text-xs font-bold text-blue-900">Target Branch:</span>
+                  <select
+                    value={selectedBranch}
+                    onChange={(e) => setSelectedBranch(e.target.value)}
+                    className="px-2 py-1 border rounded text-xs bg-background font-semibold"
                   >
-                    {saveScheduleMutation.isPending ? 'Saving...' : 'Save Shift Punch-Out Time'}
-                  </Button>
+                    <option value="all">Default (All Branches)</option>
+                    {branchesData?.map(branch => (
+                      <option key={branch.id} value={branch.id}>{branch.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 mb-1">Check-in Start Time</label>
+                    <input
+                      type="time"
+                      value={shiftCheckInTime}
+                      onChange={(e) => setShiftCheckInTime(e.target.value)}
+                      className="w-full px-3 py-1.5 border rounded-md text-xs bg-background"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-amber-900 mb-1">Mandatory Shift Punch-Out Time *</label>
+                    <input
+                      type="time"
+                      value={shiftCheckOutTime}
+                      onChange={(e) => setShiftCheckOutTime(e.target.value)}
+                      className="w-full px-3 py-1.5 border border-amber-400 rounded-md text-xs font-bold bg-background text-amber-900"
+                    />
+                  </div>
+
+                  <div>
+                    <Button
+                      size="sm"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 text-xs"
+                      onClick={() => saveScheduleMutation.mutate({
+                        check_in_time: shiftCheckInTime,
+                        check_out_time: shiftCheckOutTime,
+                        grace_period_minutes: shiftGracePeriod
+                      })}
+                      disabled={saveScheduleMutation.isPending}
+                    >
+                      {saveScheduleMutation.isPending ? 'Saving...' : 'Save Branch Shift Time'}
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : (
               <div className="flex flex-wrap items-center justify-between gap-4 text-xs">
                 <div>
-                  <span className="text-muted-foreground font-medium">Standard Shift Punch-Out Time: </span>
+                  <span className="text-muted-foreground font-medium">Standard Branch Shift Punch-Out Time: </span>
                   <span className="font-bold text-amber-800 text-sm">{shiftCheckOutTime || '19:00'}</span>
-                  <span className="text-muted-foreground ml-2">(Staff will be prompted to Punch-Out or Request Overtime)</span>
+                  <span className="text-muted-foreground ml-2">(Staff receive automated Punch-Out prompt or Overtime request at this time)</span>
                 </div>
                 <div>
                   <span className="text-muted-foreground font-medium">Check-In Time: </span>
