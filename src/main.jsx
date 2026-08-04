@@ -7,6 +7,23 @@ import App from './App'
 import './index.css'
 import 'leaflet/dist/leaflet.css'
 
+// Auto-reload on deployment chunk load errors (handles stale browser cache)
+window.addEventListener('error', (event) => {
+  const isChunkError = 
+    event.message?.includes('Failed to fetch dynamically imported module') ||
+    event.message?.includes('Failed to load module script') ||
+    event.message?.includes('Importing a module script failed');
+
+  if (isChunkError) {
+    const key = 'chunk_reload_retry';
+    const lastReload = sessionStorage.getItem(key);
+    if (!lastReload || Date.now() - parseInt(lastReload, 10) > 10000) {
+      sessionStorage.setItem(key, Date.now().toString());
+      window.location.reload();
+    }
+  }
+});
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
