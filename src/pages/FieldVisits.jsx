@@ -34,15 +34,27 @@ const safeFormat = (dateStr, formatStr, fallback = '—') => {
   }
 };
 
+const MapRecenter = ({ center, zoom = 14 }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (center && center[0] && center[1]) {
+      map.setView(center, zoom, { animate: true });
+    }
+  }, [center, zoom, map]);
+  return null;
+};
+
 const FieldVisitsPage = () => {
   const { user, hasPermission } = useAuth();
   const canManageVisits = hasPermission('field_visits:manage');
+  const canViewLiveTracking = canManageVisits || user?.role === 'owner' || user?.role === 'admin' || user?.role === 'manager' || user?.is_superuser;
   const queryClient = useQueryClient();
   const [locationError, setLocationError] = useState(null);
   const [selectedVisit, setSelectedVisit] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [selectedStaff, setSelectedStaff] = useState('all');
+  const [selectedTrackedStaff, setSelectedTrackedStaff] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignForm, setAssignForm] = useState({ lead: '', staff: '', notes: '', scheduled_date: '' });
@@ -94,12 +106,25 @@ const FieldVisitsPage = () => {
 
   const COLORS = ['#C9972A', '#0F6E56', '#1A5490', '#B03A2E', '#6B7280', '#EF4444'];
 
-  // Live tracking data for map (owner/manager only)
+  // Live tracking data for map (owner/admin/manager)
   const { data: liveTrackingData } = useQuery({
     queryKey: ['live-tracking'],
     queryFn: () => api.get('/field-visits/live-tracking/').then(res => res.data.locations || []),
-    enabled: !!canManageVisits,
-    refetchInterval: 30000 
+    refetchInterval: 8000,
+    enabled: !!canViewLiveTracking
+  });
+
+  // Fetch Staff Location Trail for Selected Staff Member (Full Daily Roadmap)
+  const { data: staffLocationTrail } = useQuery({
+    queryKey: ['location-trail', selectedTrackedStaff],
+    queryFn: () => {
+      if (selectedTrackedStaff === 'all') return Promise.resolve([]);
+      return api.get(`/field-visits/location-tracking/?user=${selectedTrackedStaff}`).then(res => {
+        const list = res.data.results || res.data;
+        return Array.isArray(list) ? list : [];
+      });
+    },
+    enabled: selectedTrackedStaff !== 'all'
   });
 
   const checkInMutation = useMutation({
@@ -416,34 +441,60 @@ const FieldVisitsPage = () => {
         </div>
       )}
 
-      {/* Live Tracking Map — visible for both managers and staff */}
-      {true && (
-        <Card className="shadow-sm overflow-hidden border-border/50">
-          <CardHeader className="bg-muted/10 border-b border-border/50 flex flex-row items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Map size={18} className="text-primary" /> {canManageVisits ? 'Live Field Staff Tracking' : 'My Current Location'}
-            </CardTitle>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              {canManageVisits && (
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse inline-block" />
-                  {liveTrackingData?.length || 0} staff active
-                </span>
-              )}
-              {!canManageVisits && userLocation && (
-                <span className="inline-flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
-                  GPS Active (Acc: ±{Math.round(userLocation.accuracy)}m)
-                </span>
-              )}
+      {/* Live Tracking Map & Daily Field Staff Roadmap — Visible to Admins, Owners & Permitted Managers */}
+      {canViewLiveTracking && (
+        <Card className="shadow-sm overflow-hidden border-border/60">
+          <CardHeader className="bg-muted/20 border-b border-border/60 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Map size={20} className="text-primary" />
+              <div>
+                <CardTitle className="text-base font-bold text-foreground">
+                  Live Field GPS Tracking & Staff Travel Roadmap
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  Real-time movement points, waypoints, and polyline travel route history.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Staff Roadmap Route Selector */}
+              <div className="flex items-center gap-1 bg-background px-2.5 py-1 rounded-lg border border-border">
+                <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">🗺️ Staff Roadmap:</span>
+                <select
+                  value={selectedTrackedStaff}
+                  onChange={(e) => setSelectedTrackedStaff(e.target.value)}
+                  className="text-xs font-bold bg-transparent outline-none cursor-pointer"
+                >
+                  <option value="all">📍 All Active Field Staff ({liveTrackingData?.length || 0})</option>
+                  {liveTrackingData?.map(loc => (
+                    <option key={loc.staff_id} value={loc.staff_id}>
+                      🟢 {loc.staff_name} ({loc.lead_name ? `Visiting ${loc.lead_name}` : 'On Field'})
+                    </option>
+                  ))}
+                  {staffData?.map(s => (
+                    <option key={s.id} value={s.id}>
+                      👤 {s.full_name} ({s.role_display || s.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
+                {liveTrackingData?.length || 0} Staff Live
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="h-[400px] w-full relative z-0">
+            <div className="h-[440px] w-full relative z-0">
               <MapContainer
-                center={canManageVisits 
-                  ? [liveTrackingData?.[0]?.latitude || 8.5241, liveTrackingData?.[0]?.longitude || 76.9366]
-                  : [userLocation?.lat || 8.5241, userLocation?.lng || 76.9366]
+                center={
+                  selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
+                    ? [parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude), parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude)]
+                    : liveTrackingData?.[0]
+                    ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
+                    : [8.5241, 76.9366]
                 }
                 zoom={14}
                 style={{ height: '100%', width: '100%', zIndex: 0 }}
@@ -452,10 +503,81 @@ const FieldVisitsPage = () => {
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                
-                {/* Manager view: all staff with NAME LABELS on map */}
-                {canManageVisits && liveTrackingData?.map((loc, i) => {
-                  const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4', '#84CC16'];
+
+                <MapRecenter 
+                  center={
+                    selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
+                      ? [parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude), parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude)]
+                      : liveTrackingData?.[0]
+                      ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
+                      : null
+                  } 
+                />
+
+                {/* ── 1. SELECTED STAFF DAILY ROADMAP POLYLINE TRAIL ─────────────────────── */}
+                {selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0 && (
+                  <React.Fragment>
+                    {/* Glowing Polyline Route Path */}
+                    <Polyline 
+                      positions={staffLocationTrail.map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)])}
+                      color="#10B981"
+                      weight={6}
+                      opacity={0.8}
+                    />
+                    <Polyline 
+                      positions={staffLocationTrail.map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)])}
+                      color="#ffffff"
+                      weight={2}
+                      dashArray="5, 10"
+                      opacity={0.9}
+                    />
+
+                    {/* Start Location Pin */}
+                    {staffLocationTrail[0] && (
+                      <Marker
+                        position={[parseFloat(staffLocationTrail[0].latitude), parseFloat(staffLocationTrail[0].longitude)]}
+                        icon={L.divIcon({
+                          className: 'custom-start-marker',
+                          html: `<div style="background:#10B981;color:#fff;font-size:10px;font-weight:700;padding:2px 6px;border-radius:10px;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🏁 Start</div>`,
+                          iconSize: [50, 24],
+                          iconAnchor: [25, 24]
+                        })}
+                      >
+                        <Popup>
+                          <div className="text-xs">
+                            <p className="font-bold text-emerald-800">🏁 Field Shift Start Point</p>
+                            <p className="text-muted-foreground">{new Date(staffLocationTrail[0].timestamp).toLocaleTimeString()}</p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    )}
+
+                    {/* Intermediate Waypoint Pings */}
+                    {staffLocationTrail.slice(1, -1).map((pt, idx) => (
+                      <Marker
+                        key={`trail-pt-${pt.id || idx}`}
+                        position={[parseFloat(pt.latitude), parseFloat(pt.longitude)]}
+                        icon={L.divIcon({
+                          className: 'custom-waypoint-marker',
+                          html: `<div style="width:10px;height:10px;background:#3B82F6;border-radius:50%;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.3);"></div>`,
+                          iconSize: [10, 10],
+                          iconAnchor: [5, 5]
+                        })}
+                      >
+                        <Popup>
+                          <div className="text-xs">
+                            <p className="font-bold">📍 Waypoint #{idx + 1}</p>
+                            <p className="text-muted-foreground">{new Date(pt.timestamp).toLocaleTimeString()}</p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    ))}
+                  </React.Fragment>
+                )}
+
+                {/* ── 2. LIVE FIELD STAFF MAP PINS ────────────────────────────────────── */}
+                {liveTrackingData?.map((loc, i) => {
+                  const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4'];
                   const color = staffColors[i % staffColors.length];
                   const firstName = (loc.staff_name || 'Staff').split(' ')[0];
                   
@@ -478,11 +600,6 @@ const FieldVisitsPage = () => {
                               border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.35);
                               margin-top:2px;
                             "></div>
-                            <div style="
-                              width:0;height:0;border-left:5px solid transparent;
-                              border-right:5px solid transparent;border-top:6px solid ${color};
-                              margin-top:-1px;
-                            "></div>
                           </div>
                         `,
                         iconSize: [80, 50],
@@ -491,140 +608,26 @@ const FieldVisitsPage = () => {
                       })}
                     >
                       <Popup>
-                        <div className="text-sm min-w-[200px]">
-                          <div style={{display:'flex',alignItems:'center',gap:8,borderBottom:'1px solid #eee',paddingBottom:6,marginBottom:6}}>
-                            <div style={{width:28,height:28,borderRadius:'50%',background:color,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontWeight:700,fontSize:12}}>
+                        <div className="text-sm min-w-[200px] space-y-1">
+                          <div className="flex items-center gap-2 border-b pb-1.5 mb-1">
+                            <div style={{ width: 26, height: 26, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: 11 }}>
                               {(loc.staff_name || '?')[0].toUpperCase()}
                             </div>
                             <div>
-                              <p style={{fontWeight:700,margin:0,fontSize:13}}>{loc.staff_name}</p>
-                              <p style={{margin:0,fontSize:10,color:'#888'}}>Field Staff</p>
+                              <p className="font-bold text-xs leading-none">{loc.staff_name}</p>
+                              <span className="text-[10px] text-emerald-700 font-semibold">🟢 Active Field Staff</span>
                             </div>
                           </div>
-                          {loc.lead_name && <p style={{fontSize:12,margin:'4px 0'}}><strong>📍 Visiting:</strong> {loc.lead_name}</p>}
-                          <p style={{fontSize:11,color:'#888',margin:'4px 0'}}>
-                            🕐 Last ping: {new Date(loc.timestamp).toLocaleTimeString()}
+                          {loc.lead_name && <p className="text-xs font-semibold">📍 Visiting Lead: {loc.lead_name}</p>}
+                          <p className="text-[11px] text-muted-foreground">
+                            🕐 Last Location Ping: {new Date(loc.timestamp).toLocaleTimeString()}
                           </p>
-                          {loc.accuracy && <p style={{fontSize:10,color:'#aaa',margin:0}}>GPS ±{Math.round(loc.accuracy)}m</p>}
+                          {loc.accuracy && <p className="text-[10px] text-muted-foreground">GPS Accuracy: ±{Math.round(loc.accuracy)}m</p>}
                         </div>
                       </Popup>
                     </Marker>
                   );
                 })}
-
-                {/* Staff view: own location */}
-                {!canManageVisits && userLocation && (
-                  <Marker position={[userLocation.lat, userLocation.lng]}>
-                    <Popup>Your current location</Popup>
-                  </Marker>
-                )}
-
-                {/* Draw trail/road path for each active visit with checkins */}
-                {filteredVisits
-                  .filter(v => v.status === 'active' && v.start_lat && v.checkins?.length > 0)
-                  .map((v, vIdx) => {
-                    const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899'];
-                    const trailColor = staffColors[vIdx % staffColors.length];
-                    const points = v.checkins.map(c => [c.lat, c.lng]);
-                    // Add start point at beginning
-                    if (v.start_lat && v.start_lng) {
-                      points.unshift([parseFloat(v.start_lat), parseFloat(v.start_lng)]);
-                    }
-                    
-                    return (
-                      <React.Fragment key={`trail-${v.id}`}>
-                        {/* Main trail polyline */}
-                        <Polyline 
-                          positions={points}
-                          color={trailColor}
-                          weight={4}
-                          opacity={0.8}
-                        />
-                        {/* Dashed shadow for visibility */}
-                        <Polyline 
-                          positions={points}
-                          color="#ffffff"
-                          weight={6}
-                          opacity={0.3}
-                        />
-                        {/* Start pin */}
-                        {v.start_lat && v.start_lng && (
-                          <Marker 
-                            position={[parseFloat(v.start_lat), parseFloat(v.start_lng)]}
-                            icon={L.divIcon({
-                              className: '',
-                              html: `<div style="
-                                width:18px;height:18px;background:#10B981;border-radius:50%;
-                                border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);
-                                display:flex;align-items:center;justify-content:center;
-                                color:#fff;font-size:8px;font-weight:700;
-                              ">S</div>`,
-                              iconSize: [18, 18],
-                              iconAnchor: [9, 9]
-                            })}
-                          >
-                            <Popup>
-                              <div className="text-xs">
-                                <p className="font-bold">🟢 Visit Start</p>
-                                <p>{v.staff_name || v.lead_name}</p>
-                                <p className="text-gray-500">{safeFormat(v.started_at, 'hh:mm a')}</p>
-                              </div>
-                            </Popup>
-                          </Marker>
-                        )}
-                        {/* Check-in pings along the route */}
-                        {v.checkins.map((c, idx) => (
-                          <Marker 
-                            key={`ping-${v.id}-${idx}`} 
-                            position={[c.lat, c.lng]}
-                            icon={L.divIcon({
-                              className: '',
-                              html: `<div style="
-                                width:12px;height:12px;background:${trailColor};border-radius:50%;
-                                border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.25);
-                                display:flex;align-items:center;justify-content:center;
-                                color:#fff;font-size:7px;font-weight:700;
-                              ">${idx + 1}</div>`,
-                              iconSize: [12, 12],
-                              iconAnchor: [6, 6]
-                            })}
-                          >
-                            <Popup>
-                              <div className="text-xs">
-                                <p className="font-bold">📍 Check-in #{idx + 1}</p>
-                                {c.note && <p>{c.note}</p>}
-                                <p className="text-gray-500">{c.timestamp ? new Date(c.timestamp).toLocaleTimeString() : ''}</p>
-                              </div>
-                            </Popup>
-                          </Marker>
-                        ))}
-                      </React.Fragment>
-                    );
-                  })
-                }
-
-                {/* Show leads locations if any */}
-                {filteredVisits.filter(v => v.lead_lat && v.lead_lng).map(v => (
-                  <Marker 
-                    key={`lead-${v.id}`} 
-                    position={[v.lead_lat, v.lead_lng]}
-                    icon={L.icon({
-                      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
-                      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                      iconSize: [25, 41],
-                      iconAnchor: [12, 41],
-                      popupAnchor: [1, -34],
-                      shadowSize: [41, 41]
-                    })}
-                  >
-                    <Popup>
-                      <div className="text-sm">
-                        <p className="font-bold">{v.lead_name}</p>
-                        <p className="text-xs">Customer Location</p>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
               </MapContainer>
             </div>
           </CardContent>
