@@ -111,6 +111,50 @@ const AttendancePage = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [previewPhoto, setPreviewPhoto] = useState(null);
 
+  // Shift Punch-out Timing settings state for Managers
+  const [shiftCheckOutTime, setShiftCheckOutTime] = useState('19:00');
+  const [shiftCheckInTime, setShiftCheckInTime] = useState('09:30');
+  const [shiftGracePeriod, setShiftGracePeriod] = useState(15);
+  const [isEditingSchedule, setIsEditingSchedule] = useState(false);
+
+  // Fetch Attendance Schedule
+  const { data: scheduleData } = useQuery({
+    queryKey: ['attendance-schedules'],
+    queryFn: () => api.get('/attendance/schedules/').then(res => {
+      const list = res.data.results || res.data;
+      if (Array.isArray(list) && list.length > 0) {
+        setShiftCheckOutTime(list[0].check_out_time || '19:00');
+        setShiftCheckInTime(list[0].check_in_time || '09:30');
+        setShiftGracePeriod(list[0].grace_period_minutes || 15);
+        return list[0];
+      }
+      return null;
+    }),
+    enabled: canManageAttendance
+  });
+
+  // Save / Update Schedule Mutation
+  const saveScheduleMutation = useMutation({
+    mutationFn: (data) => {
+      if (scheduleData?.id) {
+        return api.patch(`/attendance/schedules/${scheduleData.id}/`, data);
+      }
+      return api.post('/attendance/schedules/', {
+        branch: user?.branch || 1,
+        name: 'Default Shift',
+        ...data
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-schedules'] });
+      setIsEditingSchedule(false);
+      toast.success('Shift Punch-Out timing saved successfully!');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to save shift timing');
+    }
+  });
+
   // 1. Fetch Management Data (for Owners/Managers)
   const { data: managementAttendance, isLoading: isManagementLoading } = useQuery({
     queryKey: ['attendance-management', selectedBranch, selectedDate, selectedStatus],
@@ -148,10 +192,39 @@ const AttendancePage = () => {
     }
   });
 
-  // Filter pending requests
+  // Approve Overtime Mutation
+  const approveOvertimeMutation = useMutation({
+    mutationFn: (id) => api.patch(`/attendance/attendance/${id}/approve-overtime/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-management'] });
+      toast.success('Shift Overtime approved!');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to approve overtime');
+    }
+  });
+
+  // Reject Overtime Mutation
+  const rejectOvertimeMutation = useMutation({
+    mutationFn: (id) => api.patch(`/attendance/attendance/${id}/reject-overtime/`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['attendance-management'] });
+      toast.success('Shift Overtime rejected!');
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to reject overtime');
+    }
+  });
+
+  // Filter pending requests & overtime requests
   const pendingRequests = React.useMemo(() => {
     if (!managementAttendance || !Array.isArray(managementAttendance)) return [];
     return managementAttendance.filter(r => r.status === 'pending');
+  }, [managementAttendance]);
+
+  const pendingOvertimeRequests = React.useMemo(() => {
+    if (!managementAttendance || !Array.isArray(managementAttendance)) return [];
+    return managementAttendance.filter(r => r.overtime_requested && r.overtime_status === 'pending');
   }, [managementAttendance]);
 
   // 2. Fetch User's Today Record (for Punch-in UI - ALL users)
@@ -554,6 +627,139 @@ const AttendancePage = () => {
                   </Marker>
                 ))}
               </MapContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Shift Timings & Punch-Out Configuration Card for Owners / Admins / Managers */}
+      {canManageAttendance && (
+        <Card className="shadow-sm border-blue-200 bg-blue-50/10">
+          <CardHeader className="bg-blue-50/40 border-b border-blue-100 flex flex-row items-center justify-between py-3">
+            <CardTitle className="text-blue-900 text-sm font-bold flex items-center gap-2">
+              <Clock size={16} className="text-blue-600" /> Shift Punch-Out & Workday Timing Settings
+            </CardTitle>
+            <Button
+              size="xs"
+              variant={isEditingSchedule ? "outline" : "default"}
+              onClick={() => setIsEditingSchedule(!isEditingSchedule)}
+              className="text-xs h-7"
+            >
+              {isEditingSchedule ? 'Cancel' : '⚙️ Configure Shift Time'}
+            </Button>
+          </CardHeader>
+          <CardContent className="p-4">
+            {isEditingSchedule ? (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Check-in Start Time</label>
+                  <input
+                    type="time"
+                    value={shiftCheckInTime}
+                    onChange={(e) => setShiftCheckInTime(e.target.value)}
+                    className="w-full px-3 py-1.5 border rounded-md text-xs bg-background"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold font-amber-900 text-gray-700 mb-1">Mandatory Shift Punch-Out Time *</label>
+                  <input
+                    type="time"
+                    value={shiftCheckOutTime}
+                    onChange={(e) => setShiftCheckOutTime(e.target.value)}
+                    className="w-full px-3 py-1.5 border border-amber-400 rounded-md text-xs font-bold bg-background text-amber-900"
+                  />
+                </div>
+
+                <div>
+                  <Button
+                    size="sm"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-9 text-xs"
+                    onClick={() => saveScheduleMutation.mutate({
+                      check_in_time: shiftCheckInTime,
+                      check_out_time: shiftCheckOutTime,
+                      grace_period_minutes: shiftGracePeriod
+                    })}
+                    disabled={saveScheduleMutation.isPending}
+                  >
+                    {saveScheduleMutation.isPending ? 'Saving...' : 'Save Shift Punch-Out Time'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center justify-between gap-4 text-xs">
+                <div>
+                  <span className="text-muted-foreground font-medium">Standard Shift Punch-Out Time: </span>
+                  <span className="font-bold text-amber-800 text-sm">{shiftCheckOutTime || '19:00'}</span>
+                  <span className="text-muted-foreground ml-2">(Staff will be prompted to Punch-Out or Request Overtime)</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground font-medium">Check-In Time: </span>
+                  <span className="font-bold text-gray-800">{shiftCheckInTime || '09:30'}</span>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pending Overtime Requests Queue for Managers */}
+      {canManageAttendance && pendingOvertimeRequests.length > 0 && (
+        <Card className="shadow-sm border-purple-300 bg-purple-50/20">
+          <CardHeader className="bg-purple-100/50 border-b border-purple-200">
+            <CardTitle className="text-purple-900 text-base font-bold flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Clock size={18} className="text-purple-600" /> Pending Overtime / Shift Extension Requests ({pendingOvertimeRequests.length})
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-purple-100/30">
+                  <TableRow>
+                    <TableHead className="font-bold text-purple-900">Staff Name</TableHead>
+                    <TableHead className="font-bold text-purple-900">Branch & Date</TableHead>
+                    <TableHead className="font-bold text-purple-900">Overtime Reason</TableHead>
+                    <TableHead className="font-bold text-purple-900 text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pendingOvertimeRequests.map((record) => (
+                    <TableRow key={`ot-${record.id}`} className="hover:bg-purple-50/50">
+                      <TableCell className="font-bold text-gray-900">{record.user_name || 'Staff'}</TableCell>
+                      <TableCell className="text-xs">
+                        <p className="font-semibold">{record.branch_name || 'Main Branch'}</p>
+                        <p className="text-muted-foreground">{record.date}</p>
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        <p className="font-medium text-purple-900">"{record.overtime_reason || 'Working extra shift hours'}"</p>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-purple-700 hover:bg-purple-800 text-white font-bold h-8 text-xs"
+                            onClick={() => approveOvertimeMutation.mutate(record.id)}
+                            disabled={approveOvertimeMutation.isPending}
+                          >
+                            Approve Overtime
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            className="h-8 text-xs font-bold"
+                            onClick={() => rejectOvertimeMutation.mutate(record.id)}
+                            disabled={rejectOvertimeMutation.isPending}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </CardContent>
         </Card>
