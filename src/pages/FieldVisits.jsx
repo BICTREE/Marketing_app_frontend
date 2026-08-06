@@ -61,6 +61,17 @@ const FieldVisitsPage = () => {
   const [assignForm, setAssignForm] = useState({ lead: '', staff: '', notes: '', scheduled_date: '' });
   const [userLocation, setUserLocation] = useState(null);
 
+  // Layer toggle states & Lead Search
+  const [showBranchPins, setShowBranchPins] = useState(true);
+  const [showClientPins, setShowClientPins] = useState(true);
+  const [showStaffPins, setShowStaffPins] = useState(true);
+  const [leadSearchQuery, setLeadSearchQuery] = useState('');
+  const [focusedLocation, setFocusedLocation] = useState(null);
+  const [selectedLeadForLocation, setSelectedLeadForLocation] = useState(null);
+  const [showSaveLocationModal, setShowSaveLocationModal] = useState(false);
+  const [manualLat, setManualLat] = useState('');
+  const [manualLng, setManualLng] = useState('');
+
   // Fetch Branches
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
@@ -85,7 +96,6 @@ const FieldVisitsPage = () => {
       }
     }
   });
-
 
   const filteredVisits = visitsData || [];
 
@@ -139,12 +149,44 @@ const FieldVisitsPage = () => {
     }
   });
 
-  // Fetch Leads for assignment
+  // Fetch Leads for assignment & map pin search
   const { data: leadsData } = useQuery({
     queryKey: ['leads'],
-    queryFn: () => api.get('/leads/leads/').then(res => res.data.results || res.data),
-    enabled: !!canManageVisits
+    queryFn: () => api.get('/leads/leads/').then(res => res.data.results || res.data)
   });
+
+  // Filter leads based on search query (name or phone)
+  const filteredSearchLeads = React.useMemo(() => {
+    if (!leadsData || !Array.isArray(leadsData) || !leadSearchQuery.trim()) return [];
+    const q = leadSearchQuery.toLowerCase().trim();
+    return leadsData.filter(l => 
+      (l.name && l.name.toLowerCase().includes(q)) ||
+      (l.phone && l.phone.includes(q)) ||
+      (l.notes && l.notes.toLowerCase().includes(q))
+    ).slice(0, 8);
+  }, [leadsData, leadSearchQuery]);
+
+  const leadsWithGPS = React.useMemo(() => {
+    if (!leadsData || !Array.isArray(leadsData)) return [];
+    return leadsData.filter(l => l.lat && l.lng);
+  }, [leadsData]);
+
+  const handleSelectSearchedLead = (lead) => {
+    if (lead.lat && lead.lng) {
+      const latNum = parseFloat(lead.lat);
+      const lngNum = parseFloat(lead.lng);
+      setFocusedLocation({ lat: latNum, lng: lngNum, zoom: 16, leadId: lead.id, leadName: lead.name });
+      toast.success(`Centered map on ${lead.name}'s location (${lead.phone})`);
+    } else {
+      setSelectedLeadForLocation(lead);
+      if (userLocation) {
+        setManualLat(String(userLocation.lat));
+        setManualLng(String(userLocation.lng));
+      }
+      setShowSaveLocationModal(true);
+      toast('No saved GPS location for this client. Please set coordinates below.', { icon: '📍' });
+    }
+  };
 
   // Fetch Staff for assignment
   const { data: staffData } = useQuery({
@@ -445,45 +487,141 @@ const FieldVisitsPage = () => {
       {/* Live Tracking Map & Daily Field Staff Roadmap — Visible to Admins, Owners & Permitted Managers */}
       {canViewLiveTracking && (
         <Card className="shadow-sm overflow-hidden border-border/60">
-          <CardHeader className="bg-muted/20 border-b border-border/60 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Map size={20} className="text-primary" />
-              <div>
-                <CardTitle className="text-base font-bold text-foreground">
-                  Live Field GPS Tracking & Staff Travel Roadmap
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  Click any map point to open in Google Maps. Colored polyline shows the exact travel route.
-                </p>
+          <CardHeader className="bg-muted/20 border-b border-border/60 p-4 space-y-3">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Map size={20} className="text-primary" />
+                <div>
+                  <CardTitle className="text-base font-bold text-foreground">
+                    Live Field GPS Tracking & Client Location Map
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Search leads by phone/name to center map. Use toggle buttons below to show or hide map pins.
+                  </p>
+                </div>
+              </div>
+
+              {/* Lead / Phone Number Search Bar */}
+              <div className="relative flex-1 max-w-sm w-full">
+                <div className="relative">
+                  <Input
+                    type="text"
+                    placeholder="🔍 Search old lead by phone number or name..."
+                    value={leadSearchQuery}
+                    onChange={(e) => setLeadSearchQuery(e.target.value)}
+                    className="h-9 text-xs bg-background border-border pr-8 shadow-xs"
+                  />
+                  {leadSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => { setLeadSearchQuery(''); setFocusedLocation(null); }}
+                      className="absolute right-2.5 top-2.5 text-muted-foreground hover:text-foreground text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Lead Search Results Dropdown */}
+                {filteredSearchLeads.length > 0 && (
+                  <div className="absolute left-0 right-0 top-10 bg-background border border-border rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-border">
+                    {filteredSearchLeads.map((lead) => (
+                      <div
+                        key={lead.id}
+                        onClick={() => {
+                          handleSelectSearchedLead(lead);
+                          setLeadSearchQuery('');
+                        }}
+                        className="p-2.5 hover:bg-muted/50 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                      >
+                        <div>
+                          <p className="font-bold text-foreground">{lead.name}</p>
+                          <p className="text-[11px] text-muted-foreground">📞 {lead.phone} {lead.notes ? `• ${lead.notes}` : ''}</p>
+                        </div>
+                        <div>
+                          {lead.lat && lead.lng ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[9px]">
+                              📍 GPS Saved
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[9px]">
+                              ⚠️ Set GPS
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-3 flex-wrap">
-              {/* Staff Roadmap Route Selector */}
-              <div className="flex items-center gap-1.5 bg-background px-2.5 py-1.5 rounded-lg border border-border">
-                <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">🗺️ View Roadmap:</span>
-                <select
-                  value={selectedTrackedStaff}
-                  onChange={(e) => setSelectedTrackedStaff(e.target.value)}
-                  className="text-xs font-bold bg-transparent outline-none cursor-pointer max-w-[200px]"
+            {/* Map Layer Toggles & Roadmap Selector */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-border/40">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-muted-foreground">Layer Toggles:</span>
+                <button
+                  type="button"
+                  onClick={() => setShowBranchPins(!showBranchPins)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                    showBranchPins 
+                      ? 'bg-amber-100 border-amber-300 text-amber-900 shadow-xs' 
+                      : 'bg-background text-muted-foreground border-border opacity-60'
+                  }`}
                 >
-                  <option value="all">📍 All Active Live Pins ({liveTrackingData?.length || 0})</option>
-                  {liveTrackingData?.map(loc => (
-                    <option key={loc.staff_id} value={loc.staff_id}>
-                      🟢 {loc.staff_name}
-                    </option>
-                  ))}
-                  {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff').map(s => (
-                    <option key={`staff-${s.id}`} value={s.id}>
-                      👤 {s.full_name} (Route History)
-                    </option>
-                  ))}
-                </select>
+                  🏢 Showrooms ({branchesData?.filter(b => b.lat && b.lng).length || 0}) {showBranchPins ? '✓' : 'OFF'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowClientPins(!showClientPins)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                    showClientPins 
+                      ? 'bg-blue-100 border-blue-300 text-blue-900 shadow-xs' 
+                      : 'bg-background text-muted-foreground border-border opacity-60'
+                  }`}
+                >
+                  🎯 Client Locations ({leadsWithGPS.length}) {showClientPins ? '✓' : 'OFF'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowStaffPins(!showStaffPins)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                    showStaffPins 
+                      ? 'bg-emerald-100 border-emerald-300 text-emerald-900 shadow-xs' 
+                      : 'bg-background text-muted-foreground border-border opacity-60'
+                  }`}
+                >
+                  🟢 Live Staff ({liveTrackingData?.length || 0}) {showStaffPins ? '✓' : 'OFF'}
+                </button>
               </div>
 
-              <div className="flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                {liveTrackingData?.length || 0} Staff Live
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Staff Roadmap Route Selector */}
+                <div className="flex items-center gap-1.5 bg-background px-2.5 py-1 rounded-lg border border-border">
+                  <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">🗺️ Staff Roadmap:</span>
+                  <select
+                    value={selectedTrackedStaff}
+                    onChange={(e) => {
+                      setSelectedTrackedStaff(e.target.value);
+                      setFocusedLocation(null);
+                    }}
+                    className="text-xs font-bold bg-transparent outline-none cursor-pointer max-w-[180px]"
+                  >
+                    <option value="all">📍 All Active Live Staff</option>
+                    {liveTrackingData?.map(loc => (
+                      <option key={loc.staff_id} value={loc.staff_id}>
+                        🟢 {loc.staff_name}
+                      </option>
+                    ))}
+                    {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff').map(s => (
+                      <option key={`staff-${s.id}`} value={s.id}>
+                        👤 {s.full_name} (Route History)
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -511,10 +649,12 @@ const FieldVisitsPage = () => {
           )}
 
           <CardContent className="p-0">
-            <div className="h-[460px] w-full relative z-0">
+            <div className="h-[480px] w-full relative z-0">
               <MapContainer
                 center={
-                  selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
+                  focusedLocation
+                    ? [focusedLocation.lat, focusedLocation.lng]
+                    : selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
                     ? [parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude), parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude)]
                     : liveTrackingData?.[0]
                     ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
@@ -522,7 +662,7 @@ const FieldVisitsPage = () => {
                     ? [parseFloat(branchesData[0].lat), parseFloat(branchesData[0].lng)]
                     : [12.507468, 74.989774]
                 }
-                zoom={14}
+                zoom={focusedLocation ? focusedLocation.zoom : 14}
                 style={{ height: '100%', width: '100%', zIndex: 0 }}
               >
                 <TileLayer
@@ -532,7 +672,9 @@ const FieldVisitsPage = () => {
 
                 <MapRecenter
                   center={
-                    selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
+                    focusedLocation
+                      ? [focusedLocation.lat, focusedLocation.lng]
+                      : selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
                       ? [parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude), parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude)]
                       : liveTrackingData?.[0]
                       ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
@@ -540,10 +682,11 @@ const FieldVisitsPage = () => {
                       ? [parseFloat(branchesData[0].lat), parseFloat(branchesData[0].lng)]
                       : [12.507468, 74.989774]
                   }
+                  zoom={focusedLocation ? focusedLocation.zoom : 14}
                 />
 
-                {/* ── 0. SHOWROOM BRANCH HQ MARKERS ───────────────────────── */}
-                {branchesData?.filter(b => b.lat && b.lng).map(branch => (
+                {/* ── 0. SHOWROOM BRANCH HQ MARKERS (Controlled by Toggle) ── */}
+                {showBranchPins && branchesData?.filter(b => b.lat && b.lng).map(branch => (
                   <Marker
                     key={`branch-${branch.id}`}
                     position={[parseFloat(branch.lat), parseFloat(branch.lng)]}
@@ -589,63 +732,77 @@ const FieldVisitsPage = () => {
                   </Marker>
                 ))}
 
-                {/* ── 0.1 CLIENT / LEAD DESTINATION MARKERS ──────────────── */}
-                {liveTrackingData?.filter(loc => loc.lead_lat && loc.lead_lng).map((loc, idx) => (
-                  <Marker
-                    key={`lead-dest-${loc.staff_id || idx}`}
-                    position={[loc.lead_lat, loc.lead_lng]}
-                    icon={L.divIcon({
-                      className: '',
-                      html: `
-                        <div style="display:flex;flex-direction:column;align-items:center;">
-                          <div style="
-                            background:#1A5490;color:#fff;font-size:10px;font-weight:700;
-                            padding:3px 7px;border-radius:10px;white-space:nowrap;
-                            border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);
-                          ">🎯 ${loc.lead_name || 'Customer'}</div>
+                {/* ── 0.1 SAVED CUSTOMER LOCATION PINS (Controlled by Toggle) ── */}
+                {showClientPins && leadsWithGPS.map(lead => {
+                  const isHighlighted = focusedLocation?.leadId === lead.id;
+                  return (
+                    <Marker
+                      key={`saved-lead-${lead.id}`}
+                      position={[parseFloat(lead.lat), parseFloat(lead.lng)]}
+                      icon={L.divIcon({
+                        className: '',
+                        html: `
+                          <div style="display:flex;flex-direction:column;align-items:center;">
+                            <div style="
+                              background:${isHighlighted ? '#EF4444' : '#1A5490'};color:#fff;font-size:10px;font-weight:700;
+                              padding:3px 8px;border-radius:10px;white-space:nowrap;
+                              border:${isHighlighted ? '2.5px solid #FEF08A' : '2px solid #fff'};
+                              box-shadow:0 3px 8px rgba(0,0,0,0.3);
+                            ">🎯 ${lead.name}</div>
+                          </div>
+                        `,
+                        iconSize: [100, 32],
+                        iconAnchor: [50, 32]
+                      })}
+                    >
+                      <Popup maxWidth={240}>
+                        <div style={{ fontFamily: 'system-ui' }}>
+                          <div style={{ background: '#1A5490', color: '#fff', padding: '6px 10px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <strong style={{ fontSize: 12 }}>🎯 Client Location</strong>
+                            <span style={{ fontSize: 10, opacity: 0.9 }}>ID: #{lead.id}</span>
+                          </div>
+                          <p style={{ fontSize: 12, fontWeight: 700, margin: '2px 0' }}>{lead.name}</p>
+                          <p style={{ fontSize: 11, color: '#666', margin: '2px 0' }}>📞 {lead.phone}</p>
+                          {lead.notes && <p style={{ fontSize: 11, color: '#888', margin: '2px 0', fontStyle: 'italic' }}>📝 {lead.notes}</p>}
+                          <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+                            <a
+                              href={`https://www.google.com/maps?q=${lead.lat},${lead.lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ flex: 1, textAlign: 'center', background: '#4285f4', color: '#fff', fontSize: 10, padding: '4px 6px', borderRadius: 4, textDecoration: 'none', fontWeight: 700 }}
+                            >
+                              🗺️ Google Maps
+                            </a>
+                            <button
+                              onClick={() => {
+                                setAssignForm({ lead: String(lead.id), staff: '', notes: '', scheduled_date: '' });
+                                setShowAssignModal(true);
+                              }}
+                              style={{ flex: 1, textAlign: 'center', background: '#0F6E56', color: '#fff', fontSize: 10, padding: '4px 6px', borderRadius: 4, border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              📌 Assign Visit
+                            </button>
+                          </div>
                         </div>
-                      `,
-                      iconSize: [90, 30],
-                      iconAnchor: [45, 30]
-                    })}
-                  >
-                    <Popup maxWidth={220}>
-                      <div style={{ fontFamily: 'system-ui' }}>
-                        <div style={{ background: '#1A5490', color: '#fff', padding: '6px 10px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0' }}>
-                          <strong style={{ fontSize: 12 }}>🎯 Client Destination</strong>
-                        </div>
-                        <p style={{ fontSize: 12, fontWeight: 700, margin: '2px 0' }}>{loc.lead_name}</p>
-                        <p style={{ fontSize: 11, color: '#666', margin: '2px 0' }}>📞 {loc.lead_phone || '—'}</p>
-                        <a
-                          href={`https://www.google.com/maps?q=${loc.lead_lat},${loc.lead_lng}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: 'inline-block', marginTop: 6, background: '#4285f4', color: '#fff', fontSize: 10, padding: '4px 8px', borderRadius: 4, textDecoration: 'none', fontWeight: 700 }}
-                        >
-                          🗺️ Destination Google Maps
-                        </a>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
+                      </Popup>
+                    </Marker>
+                  );
+                })}
 
-                {/* ── 1. SELECTED STAFF DAILY ROADMAP POLYLINE TRAIL ──────────────────── */}
-                {selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 1 && (() => {
+                {/* ── 1. SELECTED STAFF DAILY ROADMAP POLYLINE TRAIL (Controlled by Toggle) ── */}
+                {showStaffPins && selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 1 && (() => {
                   const TRAIL_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
-                  // Segment the trail into color-shifting segments to show road direction
                   const trailPoints = staffLocationTrail.map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)]);
                   const segmentSize = Math.max(1, Math.ceil(trailPoints.length / TRAIL_COLORS.length));
                   
                   return (
                     <React.Fragment>
-                      {/* Thick shadow polyline for visibility */}
                       <Polyline
                         positions={trailPoints}
                         color="rgba(0,0,0,0.15)"
                         weight={10}
                         opacity={1}
                       />
-                      {/* Colored gradient segments — each section changes color */}
                       {TRAIL_COLORS.map((color, segIdx) => {
                         const start = segIdx * segmentSize;
                         const end = Math.min(start + segmentSize + 1, trailPoints.length);
@@ -660,7 +817,6 @@ const FieldVisitsPage = () => {
                           />
                         );
                       })}
-                      {/* White dashed center line for road-like appearance */}
                       <Polyline
                         positions={trailPoints}
                         color="#ffffff"
@@ -705,7 +861,7 @@ const FieldVisitsPage = () => {
                         </Popup>
                       </Marker>
 
-                      {/* 📍 Numbered Waypoint Pings */}
+                      {/* 📍 Waypoint Pings */}
                       {staffLocationTrail.slice(1, -1).map((pt, idx) => {
                         const colorIdx = Math.floor(idx / segmentSize) % TRAIL_COLORS.length;
                         const dotColor = TRAIL_COLORS[colorIdx];
@@ -749,7 +905,7 @@ const FieldVisitsPage = () => {
                         );
                       })}
 
-                      {/* 🔴 Current Position (Last GPS Point) */}
+                      {/* 🔴 Current Position */}
                       {trailPoints.length > 1 && (
                         <Marker
                           position={trailPoints[trailPoints.length - 1]}
@@ -812,8 +968,8 @@ const FieldVisitsPage = () => {
                   );
                 })()}
 
-                {/* ── 2. LIVE FIELD STAFF MAP PINS (when showing all) ──────────────── */}
-                {liveTrackingData?.map((loc, i) => {
+                {/* ── 2. LIVE FIELD STAFF MAP PINS (Controlled by Toggle) ── */}
+                {showStaffPins && liveTrackingData?.map((loc, i) => {
                   const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4'];
                   const color = staffColors[i % staffColors.length];
                   const firstName = (loc.staff_name || 'Staff').split(' ')[0];
@@ -1356,6 +1512,92 @@ const FieldVisitsPage = () => {
               {canManageVisits ? 'Assign Field Visit' : 'Start Visit Now'}
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Save / Update Client GPS Location Modal */}
+      <Dialog open={showSaveLocationModal} onOpenChange={setShowSaveLocationModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              Save Client GPS Location
+            </DialogTitle>
+          </DialogHeader>
+          {selectedLeadForLocation && (
+            <div className="space-y-4 pt-2">
+              <div className="p-3 bg-muted/30 rounded-lg border text-xs space-y-1">
+                <p className="font-bold text-foreground">{selectedLeadForLocation.name}</p>
+                <p className="text-muted-foreground">📞 Phone: {selectedLeadForLocation.phone}</p>
+                {selectedLeadForLocation.notes && <p className="text-muted-foreground italic">📝 {selectedLeadForLocation.notes}</p>}
+              </div>
+
+              <div className="space-y-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full flex items-center justify-center gap-2 text-xs font-bold border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  onClick={() => {
+                    if (navigator.geolocation) {
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => {
+                          setManualLat(String(pos.coords.latitude));
+                          setManualLng(String(pos.coords.longitude));
+                          toast.success('Retrieved current device GPS!');
+                        },
+                        () => toast.error('Unable to retrieve location')
+                      );
+                    }
+                  }}
+                >
+                  <Navigation size={14} /> Use My Current GPS Location
+                </Button>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-bold text-muted-foreground">Latitude</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 12.507468"
+                      value={manualLat}
+                      onChange={(e) => setManualLat(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-muted-foreground">Longitude</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. 74.989774"
+                      value={manualLng}
+                      onChange={(e) => setManualLng(e.target.value)}
+                      className="h-8 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                type="button"
+                className="w-full bg-[#0F6E56] hover:bg-[#094d3c]"
+                disabled={!manualLat || !manualLng || updateLeadLocationMutation.isPending}
+                onClick={() => {
+                  updateLeadLocationMutation.mutate({
+                    id: selectedLeadForLocation.id,
+                    lat: manualLat,
+                    lng: manualLng
+                  });
+                }}
+              >
+                {updateLeadLocationMutation.isPending ? (
+                  <Loader2 className="animate-spin mr-2" size={16} />
+                ) : (
+                  <MapPin size={16} className="mr-2" />
+                )}
+                Save Customer Location Pin
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
