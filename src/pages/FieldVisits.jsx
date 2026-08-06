@@ -46,8 +46,9 @@ const MapRecenter = ({ center, zoom = 14 }) => {
 
 const FieldVisitsPage = () => {
   const { user, hasPermission } = useAuth();
-  const canManageVisits = hasPermission('field_visits:manage');
-  const canViewLiveTracking = canManageVisits || user?.role === 'owner' || user?.role === 'admin' || user?.role === 'manager' || user?.is_superuser;
+  const isManagerOrAbove = user?.role === 'owner' || user?.role === 'admin' || user?.role === 'manager' || user?.is_superuser;
+  const canManageVisits = isManagerOrAbove || hasPermission('field_visits:manage');
+  const canViewLiveTracking = isManagerOrAbove || canManageVisits;
   const queryClient = useQueryClient();
   const [locationError, setLocationError] = useState(null);
   const [selectedVisit, setSelectedVisit] = useState(null);
@@ -517,9 +518,11 @@ const FieldVisitsPage = () => {
                     ? [parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude), parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude)]
                     : liveTrackingData?.[0]
                     ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
-                    : [8.5241, 76.9366]
+                    : branchesData?.[0]?.lat && branchesData?.[0]?.lng
+                    ? [parseFloat(branchesData[0].lat), parseFloat(branchesData[0].lng)]
+                    : [12.507468, 74.989774]
                 }
-                zoom={15}
+                zoom={14}
                 style={{ height: '100%', width: '100%', zIndex: 0 }}
               >
                 <TileLayer
@@ -533,9 +536,98 @@ const FieldVisitsPage = () => {
                       ? [parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude), parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude)]
                       : liveTrackingData?.[0]
                       ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
-                      : null
+                      : branchesData?.[0]?.lat && branchesData?.[0]?.lng
+                      ? [parseFloat(branchesData[0].lat), parseFloat(branchesData[0].lng)]
+                      : [12.507468, 74.989774]
                   }
                 />
+
+                {/* ── 0. SHOWROOM BRANCH HQ MARKERS ───────────────────────── */}
+                {branchesData?.filter(b => b.lat && b.lng).map(branch => (
+                  <Marker
+                    key={`branch-${branch.id}`}
+                    position={[parseFloat(branch.lat), parseFloat(branch.lng)]}
+                    icon={L.divIcon({
+                      className: '',
+                      html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;">
+                          <div style="
+                            background:linear-gradient(135deg, #C9972A, #9A711C);
+                            color:#fff;font-size:10px;font-weight:800;
+                            padding:3px 8px;border-radius:12px;white-space:nowrap;
+                            border:2px solid #fff;box-shadow:0 3px 8px rgba(201,151,42,0.6);
+                            display:flex;align-items:center;gap:3px;
+                          ">🏢 ${branch.name}</div>
+                          <div style="
+                            width:12px;height:12px;background:#C9972A;border-radius:50%;
+                            border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.3);
+                            margin-top:2px;
+                          "></div>
+                        </div>
+                      `,
+                      iconSize: [110, 42],
+                      iconAnchor: [55, 42]
+                    })}
+                  >
+                    <Popup maxWidth={240}>
+                      <div style={{ minWidth: 180, fontFamily: 'system-ui' }}>
+                        <div style={{ background: '#C9972A', color: '#fff', padding: '6px 10px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0' }}>
+                          <strong style={{ fontSize: 13 }}>🏢 {branch.name}</strong>
+                        </div>
+                        <p style={{ fontSize: 11, color: '#444', margin: '4px 0' }}>{branch.address}</p>
+                        <p style={{ fontSize: 11, color: '#666', margin: '4px 0' }}>📍 {branch.lat}, {branch.lng}</p>
+                        <a
+                          href={`https://www.google.com/maps?q=${branch.lat},${branch.lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'inline-block', marginTop: 6, background: '#4285f4', color: '#fff', fontSize: 10, padding: '4px 8px', borderRadius: 4, textDecoration: 'none', fontWeight: 700 }}
+                        >
+                          🗺️ Open Showroom in Google Maps
+                        </a>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+
+                {/* ── 0.1 CLIENT / LEAD DESTINATION MARKERS ──────────────── */}
+                {liveTrackingData?.filter(loc => loc.lead_lat && loc.lead_lng).map((loc, idx) => (
+                  <Marker
+                    key={`lead-dest-${loc.staff_id || idx}`}
+                    position={[loc.lead_lat, loc.lead_lng]}
+                    icon={L.divIcon({
+                      className: '',
+                      html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;">
+                          <div style="
+                            background:#1A5490;color:#fff;font-size:10px;font-weight:700;
+                            padding:3px 7px;border-radius:10px;white-space:nowrap;
+                            border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);
+                          ">🎯 ${loc.lead_name || 'Customer'}</div>
+                        </div>
+                      `,
+                      iconSize: [90, 30],
+                      iconAnchor: [45, 30]
+                    })}
+                  >
+                    <Popup maxWidth={220}>
+                      <div style={{ fontFamily: 'system-ui' }}>
+                        <div style={{ background: '#1A5490', color: '#fff', padding: '6px 10px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0' }}>
+                          <strong style={{ fontSize: 12 }}>🎯 Client Destination</strong>
+                        </div>
+                        <p style={{ fontSize: 12, fontWeight: 700, margin: '2px 0' }}>{loc.lead_name}</p>
+                        <p style={{ fontSize: 11, color: '#666', margin: '2px 0' }}>📞 {loc.lead_phone || '—'}</p>
+                        <a
+                          href={`https://www.google.com/maps?q=${loc.lead_lat},${loc.lead_lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'inline-block', marginTop: 6, background: '#4285f4', color: '#fff', fontSize: 10, padding: '4px 8px', borderRadius: 4, textDecoration: 'none', fontWeight: 700 }}
+                        >
+                          🗺️ Destination Google Maps
+                        </a>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
 
                 {/* ── 1. SELECTED STAFF DAILY ROADMAP POLYLINE TRAIL ──────────────────── */}
                 {selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 1 && (() => {
