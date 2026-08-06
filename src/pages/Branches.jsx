@@ -150,22 +150,27 @@ const BranchesPage = () => {
       // 2. Save Branch Shift Timing Schedule
       if (scheduleData) {
         try {
+          const formatTime = (t) => {
+            if (!t) return '09:30:00';
+            if (t.length === 5) return `${t}:00`;
+            return t;
+          };
+
           const res = await api.get(`/attendance/schedules/?branch=${id}`);
           const list = res.data.results || res.data;
           if (Array.isArray(list) && list.length > 0) {
             await api.patch(`/attendance/schedules/${list[0].id}/`, {
-              branch: id,
-              check_in_time: scheduleData.check_in_time,
-              check_out_time: scheduleData.check_out_time,
-              grace_period_minutes: scheduleData.grace_period_minutes,
+              check_in_time: formatTime(scheduleData.check_in_time),
+              check_out_time: formatTime(scheduleData.check_out_time),
+              grace_period_minutes: Number(scheduleData.grace_period_minutes) || 15,
             });
           } else {
             await api.post('/attendance/schedules/', {
               branch: id,
               name: `${data.name || 'Branch'} Shift Schedule`,
-              check_in_time: scheduleData.check_in_time,
-              check_out_time: scheduleData.check_out_time,
-              grace_period_minutes: scheduleData.grace_period_minutes,
+              check_in_time: formatTime(scheduleData.check_in_time),
+              check_out_time: formatTime(scheduleData.check_out_time),
+              grace_period_minutes: Number(scheduleData.grace_period_minutes) || 15,
             });
           }
         } catch (e) {

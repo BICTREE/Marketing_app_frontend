@@ -82,8 +82,14 @@ const AttendancePage = () => {
     if (navigator.geolocation) {
       const watchId = navigator.geolocation.watchPosition(
         (pos) => setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-        (err) => console.error(err),
-        { enableHighAccuracy: true }
+        (err) => {
+          if (err.code === err.PERMISSION_DENIED) {
+            setLocationError('Location permission is blocked in browser settings.');
+          } else {
+            console.warn('Geolocation error:', err.message);
+          }
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 }
       );
       return () => navigator.geolocation.clearWatch(watchId);
     }

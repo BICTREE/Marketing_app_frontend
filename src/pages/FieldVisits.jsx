@@ -245,7 +245,10 @@ const FieldVisitsPage = () => {
             }).catch(err => console.error('Tracking error:', err));
           }
         },
-        (error) => console.error('Location error:', error),
+        (error) => {
+          if (error.code === error.PERMISSION_DENIED) return;
+          console.warn('Location warning:', error.message);
+        },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
       return () => navigator.geolocation.clearWatch(watchId);
