@@ -19,7 +19,7 @@ export default function CustomerQuickActions({ customer }) {
   const leadId = customer?.leads?.[0]?.id;
 
   const [panel, setPanel] = useState(null); // 'reminder' | 'note' | 'whatsapp' | 'visit'
-  const [reminder, setReminder] = useState({ date: '', note: '', type: 'call' });
+  const [reminder, setReminder] = useState({ date: '', note: '', type: 'call', priority: 'medium', assigned_to: '' });
   const [note, setNote] = useState('');
   const [waTemplate, setWaTemplate] = useState(0);
   const [waCustom, setWaCustom] = useState('');
@@ -32,11 +32,11 @@ export default function CustomerQuickActions({ customer }) {
 
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 2500); };
 
-  // Fetch field staff for visit assignment
+  // Fetch field staff & telecallers for follow-up assignment
   const { data: staffData } = useQuery({
-    queryKey: ['field-staff'],
-    queryFn: () => api.get('/accounts/staff/').then(r => (r.data.results || r.data).filter(s => s.role === 'field_staff' || s.role === 'staff')),
-    enabled: panel === 'visit',
+    queryKey: ['staff-assignables'],
+    queryFn: () => api.get('/accounts/staff/').then(r => r.data.results || r.data),
+    enabled: panel === 'visit' || panel === 'reminder',
   });
 
   // Assign field visit mutation
@@ -56,10 +56,12 @@ export default function CustomerQuickActions({ customer }) {
     mutationFn: (d) => api.post('/leads/followups/', d),
     onSuccess: () => {
       queryClient.invalidateQueries(['customer', customer.id]);
-      setReminder({ date: '', note: '', type: 'call' });
+      queryClient.invalidateQueries(['followups']);
+      setReminder({ date: '', note: '', type: 'call', priority: 'medium', assigned_to: '' });
       setPanel(null);
-      flash('Reminder saved!');
+      flash('Follow-up scheduled & assigned!');
     },
+    onError: (err) => toast.error(err.response?.data?.detail || 'Failed to schedule follow-up'),
   });
 
   // Quick note on timeline
@@ -75,7 +77,13 @@ export default function CustomerQuickActions({ customer }) {
 
   const handleReminder = () => {
     if (!reminder.date) return;
-    const payload = { scheduled_date: reminder.date, note: reminder.note, followup_type: reminder.type };
+    const payload = {
+      scheduled_date: reminder.date,
+      note: reminder.note,
+      followup_type: reminder.type,
+      priority: reminder.priority || 'medium'
+    };
+    if (reminder.assigned_to) payload.assigned_to = reminder.assigned_to;
     if (leadId) payload.lead = leadId;
     reminderMutation.mutate(payload);
   };
@@ -236,28 +244,44 @@ export default function CustomerQuickActions({ customer }) {
         </div>
       )}
 
-      {/* Reminder Panel */}
+      {/* Reminder / Follow-up Panel */}
       {panel === 'reminder' && (
         <div className="border-t border-gray-100 p-5 bg-amber-50/50 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-bold text-gray-700">Add Next Reminder</p>
+            <p className="text-sm font-bold text-gray-700">Schedule & Assign Follow-up Task</p>
             {!leadId && <span className="text-xs text-red-400 font-medium">No lead linked</span>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Type</label>
+              <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Follow-up Method / Channel</label>
               <select
                 value={reminder.type}
                 onChange={e => setReminder(r => ({ ...r, type: e.target.value }))}
-                className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
               >
-                <option value="call">📞 Call</option>
-                <option value="whatsapp">💬 WhatsApp</option>
-                <option value="visit">🏪 Visit</option>
+                <option value="call">📞 Telecall Follow-up</option>
+                <option value="visit">🚗 Field Visit</option>
+                <option value="whatsapp">💬 WhatsApp Message</option>
                 <option value="email">✉️ Email</option>
+                <option value="sms">📱 SMS</option>
               </select>
             </div>
+
+            <div>
+              <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Assign To Staff Member</label>
+              <select
+                value={reminder.assigned_to}
+                onChange={e => setReminder(r => ({ ...r, assigned_to: e.target.value }))}
+                className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
+              >
+                <option value="">Choose staff member...</option>
+                {staffData?.map(s => (
+                  <option key={s.id} value={s.id}>{s.full_name} ({s.role})</option>
+                ))}
+              </select>
+            </div>
+
             <div>
               <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Date & Time</label>
               <input
@@ -265,17 +289,32 @@ export default function CustomerQuickActions({ customer }) {
                 value={reminder.date}
                 onChange={e => setReminder(r => ({ ...r, date: e.target.value }))}
                 className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                min={new Date().toISOString().slice(0, 16)}
               />
+            </div>
+
+            <div>
+              <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Priority Level</label>
+              <select
+                value={reminder.priority}
+                onChange={e => setReminder(r => ({ ...r, priority: e.target.value }))}
+                className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400 font-medium"
+              >
+                <option value="low">🟢 Low</option>
+                <option value="medium">🔵 Medium</option>
+                <option value="high">🟡 High</option>
+                <option value="urgent">🔴 Urgent</option>
+              </select>
             </div>
           </div>
 
           <div>
-            <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Note (optional)</label>
+            <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Follow-up Note / Objective</label>
             <input
               type="text"
               value={reminder.note}
               onChange={e => setReminder(r => ({ ...r, note: e.target.value }))}
-              placeholder="e.g. Call about wedding collection..."
+              placeholder="e.g. Call regarding 22kt bridal necklace inquiry..."
               className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
             />
           </div>
@@ -290,10 +329,10 @@ export default function CustomerQuickActions({ customer }) {
             <button
               onClick={handleReminder}
               disabled={!reminder.date || reminderMutation.isPending}
-              className="flex-1 py-2.5 rounded-xl bg-[#C9972A] hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="flex-1 py-2.5 rounded-xl bg-[#C9972A] hover:bg-amber-700 text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-md shadow-[#C9972A]/20"
             >
               <Bell size={14} />
-              {reminderMutation.isPending ? 'Saving...' : 'Save Reminder'}
+              {reminderMutation.isPending ? 'Saving...' : 'Save Follow-up'}
             </button>
           </div>
         </div>

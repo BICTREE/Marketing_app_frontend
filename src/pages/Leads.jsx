@@ -140,7 +140,72 @@ const Leads = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [phoneLookup, setPhoneLookup] = useState(null);
   const [isPhoneSearching, setIsPhoneSearching] = useState(false);
+
+  // Follow-up Modal state
+  const [showFollowUpModal, setShowFollowUpModal] = useState(false);
+  const [selectedLeadForFollowUp, setSelectedLeadForFollowUp] = useState(null);
+  const [followUpForm, setFollowUpForm] = useState({
+    lead_id: '',
+    followup_type: 'call',
+    assigned_to: '',
+    scheduled_date: '',
+    priority: 'medium',
+    note: ''
+  });
+
   const queryClient = useQueryClient();
+
+  const createFollowUpMutation = useMutation({
+    mutationFn: async (payload) => {
+      const targetLeadId = payload.lead_id || selectedLeadForFollowUp?.id;
+      if (!targetLeadId) throw new Error("Please select a lead for follow-up.");
+
+      // 1. Create Followup
+      const res = await api.post('/leads/followups/', {
+        lead: targetLeadId,
+        followup_type: payload.followup_type,
+        assigned_to: payload.assigned_to || undefined,
+        scheduled_date: payload.scheduled_date,
+        priority: payload.priority,
+        note: payload.note
+      });
+
+      // 2. If type is 'visit' and assigned, also create FieldVisit record
+      if (payload.followup_type === 'visit' && payload.assigned_to) {
+        try {
+          await api.post('/field-visits/field-visits/', {
+            lead: targetLeadId,
+            staff: payload.assigned_to,
+            scheduled_date: payload.scheduled_date,
+            notes: payload.note
+          });
+        } catch (e) {
+          console.error("Field visit creation error:", e);
+        }
+      }
+
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
+      queryClient.invalidateQueries({ queryKey: ['fieldvisits'] });
+      toast.success('Follow-up scheduled & assigned successfully!');
+      setShowFollowUpModal(false);
+      setSelectedLeadForFollowUp(null);
+      setFollowUpForm({
+        lead_id: '',
+        followup_type: 'call',
+        assigned_to: '',
+        scheduled_date: '',
+        priority: 'medium',
+        note: ''
+      });
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || err.message || 'Failed to schedule follow-up');
+    }
+  });
 
   // Auto-open modal if ?add=true in URL
   useEffect(() => {
@@ -412,6 +477,25 @@ const Leads = () => {
             <Filter size={16} />
             {showFilters ? 'Hide Filters' : 'Filters'}
           </button>
+
+          <Button
+            variant="outline"
+            className="gap-2 h-10 px-4 rounded-xl border-[#C9972A]/60 text-[#C9972A] hover:bg-amber-50 font-bold text-xs shadow-xs"
+            onClick={() => {
+              setSelectedLeadForFollowUp(null);
+              setFollowUpForm({
+                lead_id: '',
+                followup_type: 'call',
+                assigned_to: '',
+                scheduled_date: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+                priority: 'medium',
+                note: ''
+              });
+              setShowFollowUpModal(true);
+            }}
+          >
+            <Clock size={16} /> Schedule Follow-up
+          </Button>
 
           <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
             <DialogTrigger asChild>
@@ -873,13 +957,14 @@ const Leads = () => {
                 <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Stage</th>
                 {isAdmin && <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Branch</th>}
                 <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Owner</th>
-                <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase text-right">Created</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Created</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {isLoading ? (
                 [1,2,3,4,5].map(i => (
-                  <tr key={i}><td colSpan={6} className="px-4 py-8"><div className="h-8 bg-gray-100 rounded animate-pulse"></div></td></tr>
+                  <tr key={i}><td colSpan={8} className="px-4 py-8"><div className="h-8 bg-gray-100 rounded animate-pulse"></div></td></tr>
                 ))
               ) : groupedLeads.map(lead => (
                 <tr
@@ -906,8 +991,30 @@ const Leads = () => {
                   <td className="px-4 py-3"><StageBadge stage={lead.stage} /></td>
                   {isAdmin && <td className="px-4 py-3 text-sm text-gray-600">{lead.branch_name || '—'}</td>}
                   <td className="px-4 py-3 text-sm text-gray-600">{lead.assigned_to_name || '—'}</td>
-                  <td className="px-4 py-3 text-right text-sm text-muted-foreground">
+                  <td className="px-4 py-3 text-sm text-muted-foreground">
                     {safeFormat(lead.created_at, 'MMM dd, yyyy')}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2.5 text-xs font-bold border-[#C9972A]/50 text-[#C9972A] hover:bg-amber-50 shadow-2xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedLeadForFollowUp(lead);
+                        setFollowUpForm({
+                          lead_id: lead.id,
+                          followup_type: 'call',
+                          assigned_to: lead.assigned_to ? String(lead.assigned_to) : '',
+                          scheduled_date: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+                          priority: 'medium',
+                          note: ''
+                        });
+                        setShowFollowUpModal(true);
+                      }}
+                    >
+                      <Clock size={12} className="mr-1" /> Follow-up
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -953,9 +1060,31 @@ const Leads = () => {
                   <div className="flex items-center gap-2">
                     <SourceBadge source={lead.source} />
                   </div>
-                  <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                    <User size={10} /> {lead.assigned_to_name || 'Unassigned'}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px] font-bold border-[#C9972A]/50 text-[#C9972A] hover:bg-amber-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedLeadForFollowUp(lead);
+                        setFollowUpForm({
+                          lead_id: lead.id,
+                          followup_type: 'call',
+                          assigned_to: lead.assigned_to ? String(lead.assigned_to) : '',
+                          scheduled_date: new Date(Date.now() + 86400000).toISOString().slice(0, 16),
+                          priority: 'medium',
+                          note: ''
+                        });
+                        setShowFollowUpModal(true);
+                      }}
+                    >
+                      <Clock size={11} className="mr-1" /> + Follow-up
+                    </Button>
+                    <p className="text-[10px] text-gray-400 flex items-center gap-1">
+                      <User size={10} /> {lead.assigned_to_name || 'Unassigned'}
+                    </p>
+                  </div>
                 </div>
               </div>
             ))}
@@ -998,6 +1127,136 @@ const Leads = () => {
           </div>
         )}
       </div>
+
+      {/* ── Schedule & Assign Follow-up Modal ────────────────────────────────────── */}
+      <Dialog open={showFollowUpModal} onOpenChange={setShowFollowUpModal}>
+        <DialogContent className="max-w-lg w-[95vw] sm:w-full">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-gray-900">
+              <Clock size={18} className="text-[#C9972A]" /> Schedule &amp; Assign Follow-up
+            </DialogTitle>
+          </DialogHeader>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createFollowUpMutation.mutate(followUpForm);
+            }}
+            className="space-y-4 pt-2"
+          >
+            {/* Select Lead (if not pre-selected) */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Target Lead *</Label>
+              {selectedLeadForFollowUp ? (
+                <div className="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-xs flex justify-between items-center">
+                  <div>
+                    <p className="font-bold text-gray-900">{selectedLeadForFollowUp.name}</p>
+                    <p className="text-gray-500">📞 {selectedLeadForFollowUp.phone} • {selectedLeadForFollowUp.stage || 'lead'}</p>
+                  </div>
+                  <Badge className="bg-[#C9972A] text-white">Selected</Badge>
+                </div>
+              ) : (
+                <select
+                  required
+                  value={followUpForm.lead_id}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, lead_id: e.target.value })}
+                  className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-[#C9972A]/40 outline-none font-medium"
+                >
+                  <option value="">Select lead for follow-up...</option>
+                  {(groupedLeads || []).map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({l.phone})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            {/* Channel & Staff Assignment */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Follow-up Channel *</Label>
+                <select
+                  value={followUpForm.followup_type}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, followup_type: e.target.value })}
+                  className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-[#C9972A]/40 outline-none font-medium"
+                >
+                  <option value="call">📞 Telecall Follow-up</option>
+                  <option value="visit">🚗 Field Visit</option>
+                  <option value="whatsapp">💬 WhatsApp Message</option>
+                  <option value="email">✉️ Email</option>
+                  <option value="sms">📱 SMS</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Assign To Staff</Label>
+                <select
+                  value={followUpForm.assigned_to}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, assigned_to: e.target.value })}
+                  className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-[#C9972A]/40 outline-none font-medium"
+                >
+                  <option value="">Leave Unassigned / Current Owner</option>
+                  {(teamData || []).map(u => (
+                    <option key={u.id} value={String(u.id)}>
+                      {u.full_name || u.username} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Schedule Date & Priority */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Scheduled Date &amp; Time *</Label>
+                <Input
+                  type="datetime-local"
+                  required
+                  value={followUpForm.scheduled_date}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, scheduled_date: e.target.value })}
+                  min={new Date().toISOString().slice(0, 16)}
+                  className="h-10 text-xs"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Priority</Label>
+                <select
+                  value={followUpForm.priority}
+                  onChange={(e) => setFollowUpForm({ ...followUpForm, priority: e.target.value })}
+                  className="w-full h-10 px-3 border border-gray-200 rounded-xl text-sm bg-white focus:ring-2 focus:ring-[#C9972A]/40 outline-none font-medium"
+                >
+                  <option value="low">🟢 Low Priority</option>
+                  <option value="medium">🔵 Medium Priority</option>
+                  <option value="high">🟡 High Priority</option>
+                  <option value="urgent">🔴 Urgent Priority</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Note */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Follow-up Instructions / Notes</Label>
+              <textarea
+                value={followUpForm.note}
+                onChange={(e) => setFollowUpForm({ ...followUpForm, note: e.target.value })}
+                placeholder="Details of what to discuss or follow up on..."
+                className="w-full min-h-[80px] p-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-[#C9972A]/40 outline-none"
+              />
+            </div>
+
+            <Button
+              type="submit"
+              disabled={createFollowUpMutation.isPending}
+              className="w-full h-11 bg-[#C9972A] hover:bg-amber-700 text-white font-bold text-sm rounded-xl shadow-md shadow-[#C9972A]/20"
+            >
+              {createFollowUpMutation.isPending ? <Loader2 className="animate-spin mr-2" size={16} /> : <Clock size={16} className="mr-2" />}
+              {createFollowUpMutation.isPending ? 'Scheduling...' : 'Save & Assign Follow-up'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
