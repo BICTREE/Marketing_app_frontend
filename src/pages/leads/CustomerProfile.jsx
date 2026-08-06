@@ -11,52 +11,19 @@ import { ArrowLeft, Users, Loader2, AlertCircle } from 'lucide-react';
  *   - A Lead ID (lead.customer was null) → fetch lead, get customer FK
  */
 const useResolvedCustomerId = (rawId) => {
-  // First try it as a Customer ID directly
   const customerQuery = useQuery({
     queryKey: ['customer-resolve', rawId],
     queryFn: () => api.get(`/leads/customers/${rawId}/`).then(r => r.data),
     enabled: !!rawId,
-    retry: false,           // don't retry — if 404, fall through
+    retry: 1,
     staleTime: 30_000,
   });
-
-  // If customer lookup fails, try fetching the Lead and grab its customer FK
-  const leadFallbackQuery = useQuery({
-    queryKey: ['lead-resolve-customer', rawId],
-    queryFn: () => api.get(`/leads/leads/${rawId}/`).then(r => r.data),
-    enabled: !!rawId && customerQuery.isError,
-    retry: false,
-    staleTime: 30_000,
-  });
-
-  if (customerQuery.isLoading) {
-    return { customerId: null, customer: null, isLoading: true, isError: false };
-  }
-
-  if (!customerQuery.isError && customerQuery.data) {
-    console.log('Resolved via Customer ID:', rawId);
-    return {
-      customerId: rawId,
-      customer: customerQuery.data,
-      isLoading: false,
-      isError: false,
-    };
-  }
-
-  // If customer lookup fails, try fetching the Lead and grab its customer FK
-  const resolvedId = leadFallbackQuery.data?.customer;
-  
-  if (leadFallbackQuery.isLoading) {
-    return { customerId: null, customer: null, isLoading: true, isError: false };
-  }
-
-  console.log('Customer lookup failed, lead fallback result:', { rawId, resolvedId, isError: leadFallbackQuery.isError });
 
   return {
-    customerId: resolvedId ?? null,
-    customer: null,
-    isLoading: false,
-    isError: leadFallbackQuery.isError || (!leadFallbackQuery.isLoading && !resolvedId),
+    customerId: customerQuery.data?.id || null,
+    customer: customerQuery.data || null,
+    isLoading: customerQuery.isLoading,
+    isError: customerQuery.isError,
   };
 };
 
