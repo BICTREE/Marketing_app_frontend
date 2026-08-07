@@ -755,7 +755,7 @@ const CustomerProfileDetail = ({ customerId }) => {
           {activeTab === 'leads' && (
             <div className="animate-in fade-in duration-300">
               <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-6">
-                <Briefcase size={18} className="text-[#C9972A]" /> CRM Lead Records
+                <Briefcase size={18} className="text-[#C9972A]" /> Marketing Lead Records
               </h3>
               <div className="max-w-3xl">
                 {customer.leads && customer.leads.length > 0 ? (

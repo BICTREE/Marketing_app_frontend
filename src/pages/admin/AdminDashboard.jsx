@@ -231,7 +231,7 @@ const AdminDashboard = () => {
     if (selectedBranch !== 'all') list = list.filter(s => s.branch === parseInt(selectedBranch));
     if (selectedStaff !== 'all') list = list.filter(s => s.staff === parseInt(selectedStaff));
     // Filter sales by campaign if they were linked via leads (this might require backend change if not directly linked, 
-    // but usually in this CRM sales are linked to staff/branch)
+    // but usually in this Marketing Tool sales are linked to staff/branch)
     return list.filter(s => isWithinDateRange(s.created_at));
   }, [salesData, selectedBranch, dateRange, customStartDate, customEndDate, selectedStaff]);
 

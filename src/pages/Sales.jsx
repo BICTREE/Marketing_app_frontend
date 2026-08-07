@@ -301,7 +301,7 @@ const SalesPage = () => {
                       {isPhoneSearching ? (
                         <div className="flex items-center gap-2 p-3 text-sm text-muted-foreground bg-gray-50 rounded-xl border border-gray-100 mb-2">
                           <Loader2 className="animate-spin h-4 w-4 text-primary" />
-                          <span>Searching CRM customer database...</span>
+                          <span>Searching Marketing customer database...</span>
                         </div>
                       ) : matchedLead ? (
                         <div className="flex items-center gap-3 p-3 bg-green-50 rounded-xl border border-green-100 mb-2 animate-in slide-in-from-top-1 duration-200">
