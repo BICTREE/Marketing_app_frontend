@@ -341,9 +341,85 @@ const FieldVisitsPage = () => {
   const { data: liveTrackingData } = useQuery({
     queryKey: ['live-tracking'],
     queryFn: () => api.get('/field-visits/live-tracking/').then(res => res.data.locations || []),
-    refetchInterval: 8000,
+    refetchInterval: 10000,
     enabled: !!canViewLiveTracking
   });
+
+  const [wsStatus, setWsStatus] = useState('connecting');
+  const [realtimeStaffLocations, setRealtimeStaffLocations] = useState({});
+
+  useEffect(() => {
+    if (!canViewLiveTracking) return;
+
+    let ws = null;
+    let reconnectTimer = null;
+
+    const connectWs = () => {
+      try {
+        setWsStatus('connecting');
+        ws = new WebSocket('wss://apimarketing.bindujewellery.com/ws/live-tracking/');
+
+        ws.onopen = () => {
+          setWsStatus('connected');
+        };
+
+        ws.onmessage = (evt) => {
+          try {
+            const data = JSON.parse(evt.data);
+            if (data.type === 'location_broadcast' && data.staff_id) {
+              setRealtimeStaffLocations(prev => ({
+                ...prev,
+                [data.staff_id]: data
+              }));
+              if (String(data.staff_id) === String(selectedTrackedStaff)) {
+                queryClient.invalidateQueries({ queryKey: ['location-trail', selectedTrackedStaff] });
+              }
+            }
+          } catch (_) {}
+        };
+
+        ws.onclose = () => {
+          setWsStatus('disconnected');
+          reconnectTimer = setTimeout(connectWs, 5000);
+        };
+
+        ws.onerror = () => {
+          setWsStatus('disconnected');
+        };
+      } catch (_) {
+        setWsStatus('disconnected');
+      }
+    };
+
+    connectWs();
+
+    return () => {
+      if (ws) ws.close();
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+    };
+  }, [canViewLiveTracking, selectedTrackedStaff, queryClient]);
+
+  const activeLiveTracking = React.useMemo(() => {
+    if (!liveTrackingData) return [];
+    return liveTrackingData.map(loc => {
+      const rt = realtimeStaffLocations[loc.staff_id];
+      if (rt) {
+        return {
+          ...loc,
+          latitude: rt.latitude || loc.latitude,
+          longitude: rt.longitude || loc.longitude,
+          accuracy: rt.accuracy || loc.accuracy,
+          speed: rt.speed || loc.speed,
+          heading: rt.heading || loc.heading,
+          is_gps_on: rt.is_gps_on !== undefined ? rt.is_gps_on : loc.is_gps_on,
+          timestamp: rt.timestamp || loc.timestamp,
+          seconds_ago: 0,
+          status_label: '🟢 LIVE (WebSocket)'
+        };
+      }
+      return loc;
+    });
+  }, [liveTrackingData, realtimeStaffLocations]);
 
   // Fetch Staff Location Trail for Selected Staff Member (Full Daily Roadmap)
   const { data: staffLocationTrail } = useQuery({
@@ -856,6 +932,18 @@ const FieldVisitsPage = () => {
               </div>
 
               <div className="flex items-center gap-3 flex-wrap">
+                {/* WebSocket Real-Time Status Pill */}
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1.5 border shadow-2xs ${
+                  wsStatus === 'connected'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : wsStatus === 'connecting'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200 animate-pulse'
+                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${wsStatus === 'connected' ? 'bg-emerald-500 animate-ping' : wsStatus === 'connecting' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                  {wsStatus === 'connected' ? '🟢 Live WebSocket' : wsStatus === 'connecting' ? '🟠 Connecting WS...' : '🔴 REST Fallback'}
+                </span>
+
                 {/* Staff Roadmap Route Selector */}
                 <div className="flex items-center gap-1.5 bg-background px-2.5 py-1 rounded-lg border border-border">
                   <span className="text-xs font-bold text-muted-foreground whitespace-nowrap">🗺️ Staff Roadmap:</span>
@@ -870,7 +958,7 @@ const FieldVisitsPage = () => {
                     className="text-xs font-bold bg-transparent outline-none cursor-pointer max-w-[180px]"
                   >
                     <option value="all">📍 All Active Live Staff</option>
-                    {liveTrackingData?.map(loc => (
+                    {activeLiveTracking?.map(loc => (
                       <option key={loc.staff_id} value={loc.staff_id}>
                         🟢 {loc.staff_name}
                       </option>
@@ -1273,7 +1361,7 @@ const FieldVisitsPage = () => {
                 })()}
 
                 {/* ── 2. LIVE FIELD STAFF MAP PINS (Controlled by Toggle & Staff Filter) ── */}
-                {showStaffPins && (selectedTrackedStaff === 'all' ? liveTrackingData : liveTrackingData?.filter(loc => String(loc.staff_id) === String(selectedTrackedStaff)))?.map((loc, i) => {
+                {showStaffPins && (selectedTrackedStaff === 'all' ? activeLiveTracking : activeLiveTracking?.filter(loc => String(loc.staff_id) === String(selectedTrackedStaff)))?.map((loc, i) => {
                   const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4'];
                   const color = staffColors[i % staffColors.length];
                   const firstName = (loc.staff_name || 'Staff').split(' ')[0];
