@@ -697,7 +697,7 @@ const FieldVisitsPage = () => {
                     icon={L.divIcon({
                       className: '',
                       html: `
-                        <div style="display:flex;flex-direction:column;align-items:center;">
+                        <div style="display:flex;flex-direction:column;align-items:center;width:120px;">
                           <div style="
                             background:linear-gradient(135deg, #C9972A, #9A711C);
                             color:#fff;font-size:10px;font-weight:800;
@@ -712,8 +712,9 @@ const FieldVisitsPage = () => {
                           "></div>
                         </div>
                       `,
-                      iconSize: [110, 42],
-                      iconAnchor: [55, 42]
+                      iconSize: [120, 40],
+                      iconAnchor: [60, 40],
+                      popupAnchor: [0, -40]
                     })}
                   >
                     <Popup maxWidth={240}>
@@ -746,17 +747,23 @@ const FieldVisitsPage = () => {
                       icon={L.divIcon({
                         className: '',
                         html: `
-                          <div style="display:flex;flex-direction:column;align-items:center;">
+                          <div style="display:flex;flex-direction:column;align-items:center;width:120px;">
                             <div style="
                               background:${isHighlighted ? '#EF4444' : '#1A5490'};color:#fff;font-size:10px;font-weight:700;
                               padding:3px 8px;border-radius:10px;white-space:nowrap;
                               border:${isHighlighted ? '2.5px solid #FEF08A' : '2px solid #fff'};
                               box-shadow:0 3px 8px rgba(0,0,0,0.3);
                             ">🎯 ${lead.name}</div>
+                            <div style="
+                              width:10px;height:10px;background:${isHighlighted ? '#EF4444' : '#1A5490'};border-radius:50%;
+                              border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.3);
+                              margin-top:2px;
+                            "></div>
                           </div>
                         `,
-                        iconSize: [100, 32],
-                        iconAnchor: [50, 32]
+                        iconSize: [120, 36],
+                        iconAnchor: [60, 36],
+                        popupAnchor: [0, -36]
                       })}
                     >
                       <Popup maxWidth={240}>
@@ -834,14 +841,19 @@ const FieldVisitsPage = () => {
                         position={trailPoints[0]}
                         icon={L.divIcon({
                           className: '',
-                          html: `<div style="
-                            background:#10B981;color:#fff;font-size:11px;font-weight:800;
-                            padding:4px 10px;border-radius:20px;white-space:nowrap;
-                            border:2.5px solid #fff;box-shadow:0 3px 10px rgba(16,185,129,0.5);
-                            display:flex;align-items:center;gap:4px;
-                          ">🏁 Start</div>`,
-                          iconSize: [62, 28],
-                          iconAnchor: [31, 28]
+                          html: `
+                            <div style="display:flex;flex-direction:column;align-items:center;width:80px;">
+                              <div style="
+                                background:#10B981;color:#fff;font-size:11px;font-weight:800;
+                                padding:4px 10px;border-radius:20px;white-space:nowrap;
+                                border:2.5px solid #fff;box-shadow:0 3px 10px rgba(16,185,129,0.5);
+                                display:flex;align-items:center;gap:4px;
+                              ">🏁 Start</div>
+                            </div>
+                          `,
+                          iconSize: [80, 28],
+                          iconAnchor: [40, 14],
+                          popupAnchor: [0, -14]
                         })}
                       >
                         <Popup maxWidth={240}>
@@ -882,7 +894,8 @@ const FieldVisitsPage = () => {
                                 color:#fff;font-size:8px;font-weight:800;cursor:pointer;
                               ">${idx + 1}</div>`,
                               iconSize: [20, 20],
-                              iconAnchor: [10, 10]
+                              iconAnchor: [10, 10],
+                              popupAnchor: [0, -10]
                             })}
                           >
                             <Popup maxWidth={240}>
@@ -916,21 +929,22 @@ const FieldVisitsPage = () => {
                           icon={L.divIcon({
                             className: '',
                             html: `
-                              <div style="display:flex;flex-direction:column;align-items:center;">
+                              <div style="display:flex;flex-direction:column;align-items:center;width:80px;">
                                 <div style="
                                   background:#EF4444;color:#fff;font-size:10px;font-weight:800;
                                   padding:3px 9px;border-radius:14px;white-space:nowrap;
                                   border:2px solid #fff;box-shadow:0 3px 10px rgba(239,68,68,0.5);
                                 ">📍 NOW</div>
                                 <div style="
-                                  width:16px;height:16px;background:#EF4444;border-radius:50%;
+                                  width:14px;height:14px;background:#EF4444;border-radius:50%;
                                   border:3px solid #fff;box-shadow:0 0 0 4px rgba(239,68,68,0.3);
-                                  margin-top:3px;animation:pulse 1.5s ease-in-out infinite;
+                                  margin-top:2px;
                                 "></div>
                               </div>
                             `,
-                            iconSize: [60, 44],
-                            iconAnchor: [30, 44]
+                            iconSize: [80, 44],
+                            iconAnchor: [40, 44],
+                            popupAnchor: [0, -44]
                           })}
                         >
                           <Popup maxWidth={260}>
@@ -985,7 +999,7 @@ const FieldVisitsPage = () => {
                       icon={L.divIcon({
                         className: 'custom-staff-marker',
                         html: `
-                          <div style="display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);">
+                          <div style="display:flex;flex-direction:column;align-items:center;width:100px;">
                             <div style="
                               background:${color};color:#fff;font-size:10px;font-weight:700;
                               padding:3px 8px;border-radius:12px;white-space:nowrap;
@@ -999,9 +1013,9 @@ const FieldVisitsPage = () => {
                             "></div>
                           </div>
                         `,
-                        iconSize: [80, 50],
-                        iconAnchor: [40, 50],
-                        popupAnchor: [0, -50]
+                        iconSize: [100, 44],
+                        iconAnchor: [50, 44],
+                        popupAnchor: [0, -44]
                       })}
                     >
                       <Popup maxWidth={260}>

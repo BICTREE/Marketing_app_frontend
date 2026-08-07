@@ -81,10 +81,13 @@ const AttendancePage = () => {
   useEffect(() => {
     if (navigator.geolocation) {
       const watchId = navigator.geolocation.watchPosition(
-        (pos) => setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+        (pos) => {
+          setCurrentLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setLocationError(null); // Clear any previous error on success
+        },
         (err) => {
-          if (err.code === err.PERMISSION_DENIED) {
-            setLocationError('Location permission is blocked in browser settings.');
+          if (err.code === 1) { // PERMISSION_DENIED
+            setLocationError('PERMISSION_DENIED');
           } else {
             console.warn('Geolocation error:', err.message);
           }
@@ -306,13 +309,18 @@ const AttendancePage = () => {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        setLocationError(null);
         checkInMutation.mutate({
           lat: position.coords.latitude,
           lng: position.coords.longitude
         });
       },
       (error) => {
-        setLocationError('Unable to retrieve your location. Please ensure location services are enabled.');
+        if (error.code === 1) { // PERMISSION_DENIED
+          setLocationError('PERMISSION_DENIED');
+        } else {
+          setLocationError('Unable to get your location. Please ensure GPS/location is turned on.');
+        }
       },
       {
         enableHighAccuracy: true,
@@ -496,9 +504,24 @@ const AttendancePage = () => {
                 </div>
 
                 {locationError && (
-                  <div className="text-sm text-destructive bg-destructive/5 border border-destructive/10 p-4 rounded-lg max-w-md text-center flex items-center gap-2 mx-4">
-                    <Info size={16} className="shrink-0" />
-                    {locationError}
+                  <div className="text-sm bg-red-50 border border-red-200 p-4 rounded-xl max-w-md mx-4 text-left space-y-2">
+                    <div className="flex items-center gap-2 font-bold text-red-700">
+                      <Info size={16} className="shrink-0" />
+                      {locationError === 'PERMISSION_DENIED' ? 'Location Permission Blocked' : 'Location Unavailable'}
+                    </div>
+                    {locationError === 'PERMISSION_DENIED' ? (
+                      <div className="text-red-600 space-y-1">
+                        <p>Your browser has blocked location access. To fix this:</p>
+                        <ol className="list-decimal list-inside space-y-1 text-xs pl-1">
+                          <li>Click the <strong>🔒 lock icon</strong> or <strong>ⓘ info icon</strong> next to the URL in your browser</li>
+                          <li>Find <strong>"Location"</strong> and change it to <strong>"Allow"</strong></li>
+                          <li>Refresh the page and try again</li>
+                        </ol>
+                        <p className="text-xs text-red-500 mt-1">On Chrome: click the tune (⚙) icon → Site settings → Location → Allow</p>
+                      </div>
+                    ) : (
+                      <p className="text-red-600">{locationError}</p>
+                    )}
                   </div>
                 )}
 
@@ -557,7 +580,10 @@ const AttendancePage = () => {
                     {currentLocation && (
                       <Marker position={[currentLocation.lat, currentLocation.lng]} icon={L.divIcon({
                         className: 'user-location-icon',
-                        html: `<div style="background-color: #3B82F6; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>`
+                        html: `<div style="background-color: #3B82F6; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px rgba(0,0,0,0.3);"></div>`,
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6],
+                        popupAnchor: [0, -6]
                       })}>
                         <Popup>My Current Location</Popup>
                       </Marker>
