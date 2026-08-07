@@ -234,20 +234,25 @@ const FieldVisitsPage = () => {
             accuracy: position.coords.accuracy
           });
           
-          // If there's an active visit, update live tracking
           const activeVisit = filteredVisits.find(v => v.status === 'active' && v.start_lat);
-          if (activeVisit) {
-            api.post('/field-visits/location-tracking/', {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-              field_visit: activeVisit.id
-            }).catch(err => console.error('Tracking error:', err));
-          }
+          api.post('/field-visits/location-tracking/', {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            speed: position.coords.speed || 0,
+            is_gps_on: true,
+            field_visit: activeVisit ? activeVisit.id : null
+          }).catch(err => console.error('Tracking ping error:', err));
         },
         (error) => {
-          if (error.code === error.PERMISSION_DENIED) return;
-          console.warn('Location warning:', error.message);
+          // If GPS is disabled or permission denied, report GPS OFF status
+          if (error.code === 1 || error.code === 2) {
+            api.post('/field-visits/location-tracking/', {
+              latitude: userLocation?.lat || 0,
+              longitude: userLocation?.lng || 0,
+              is_gps_on: false
+            }).catch(() => {});
+          }
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
@@ -1026,14 +1031,17 @@ const FieldVisitsPage = () => {
                             </div>
                             <div>
                               <strong style={{ fontSize: 13, display: 'block' }}>{loc.staff_name}</strong>
-                              <span style={{ fontSize: 10, opacity: 0.9 }}>🟢 Active Field Staff</span>
+                              <span style={{ fontSize: 10, opacity: 0.9 }}>
+                                {loc.status_label || (loc.is_gps_on === false ? '⚠️ GPS OFF' : (loc.seconds_ago > 600 ? '🔴 Offline' : '🟢 LIVE'))}
+                              </span>
                             </div>
                           </div>
                           {loc.lead_name && <p style={{ fontSize: 12, margin: '4px 0' }}>📍 <strong>Visiting:</strong> {loc.lead_name}</p>}
                           <p style={{ fontSize: 11, color: '#666', margin: '4px 0' }}>
-                            🕐 {new Date(loc.timestamp).toLocaleTimeString()}
+                            🕐 <strong>Updated:</strong> {new Date(loc.timestamp).toLocaleTimeString()} {loc.seconds_ago !== undefined ? `(${loc.seconds_ago}s ago)` : ''}
                           </p>
-                          {loc.accuracy && <p style={{ fontSize: 10, color: '#999', margin: '2px 0' }}>GPS ±{Math.round(loc.accuracy)}m</p>}
+                          {loc.accuracy && <p style={{ fontSize: 10, color: '#4B5563', margin: '2px 0', fontWeight: 600 }}>📡 GPS Accuracy: ±{Math.round(loc.accuracy)}m</p>}
+                          {loc.speed > 0 && <p style={{ fontSize: 10, color: '#0F6E56', margin: '2px 0', fontWeight: 700 }}>🚗 Speed: {(loc.speed * 3.6).toFixed(1)} km/h</p>}
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             <a
                               href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
