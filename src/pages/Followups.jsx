@@ -59,6 +59,11 @@ const Followups = () => {
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
   const [followupToComplete, setFollowupToComplete] = useState(null);
   const [staffSearch, setStaffSearch] = useState('');
+  const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
+  const [issueFollowup, setIssueFollowup] = useState(null);
+  const [issueNote, setIssueNote] = useState('');
+  const [isSubmittingIssue, setIsSubmittingIssue] = useState(false);
+
   const [completionData, setCompletionData] = useState({
     outcome: '',
     scheduleNext: true,
@@ -67,6 +72,27 @@ const Followups = () => {
     nextType: 'call',
     reason: ''
   });
+
+  const handleReportIssueSubmit = async (e) => {
+    e.preventDefault();
+    if (!issueNote.trim()) {
+      toast.error('Please enter an issue note explaining why you cannot complete this task.');
+      return;
+    }
+    setIsSubmittingIssue(true);
+    try {
+      await api.post(`/leads/followups/${issueFollowup.id}/report-issue/`, { issue_note: issueNote });
+      toast.success('Task returned to manager with your issue note.');
+      setIsIssueModalOpen(false);
+      setIssueNote('');
+      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries(['staff-followups']);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to report issue.');
+    } finally {
+      setIsSubmittingIssue(false);
+    }
+  };
 
   const { data: followups, isLoading } = useQuery({
     queryKey: ['followups', statusFilter, timeFrame],
@@ -316,17 +342,41 @@ const Followups = () => {
                   )}
                 </div>
                 
-                {!followup.completed && (
-                   <Button 
-                    className="w-full mt-2 bg-[#0F6E56] hover:bg-[#084d3c]"
-                    size="sm"
-                    onClick={() => {
-                      setFollowupToComplete(followup);
-                      setIsCompleteModalOpen(true);
-                    }}
-                   >
-                     <CheckCircle2 size={14} className="mr-2" /> Mark Completed
-                   </Button>
+                {!followup.completed && followup.status !== 'returned' && (
+                  <div className="flex gap-2 mt-3">
+                    <Button 
+                      className="flex-1 bg-[#0F6E56] hover:bg-[#084d3c]"
+                      size="sm"
+                      onClick={() => {
+                        setFollowupToComplete(followup);
+                        setIsCompleteModalOpen(true);
+                      }}
+                    >
+                      <CheckCircle2 size={14} className="mr-1.5" /> Mark Done
+                    </Button>
+
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 font-semibold"
+                      onClick={() => {
+                        setIssueFollowup(followup);
+                        setIssueNote('');
+                        setIsIssueModalOpen(true);
+                      }}
+                    >
+                      <AlertCircle size={14} className="mr-1.5" /> Return Issue
+                    </Button>
+                  </div>
+                )}
+
+                {followup.status === 'returned' && (
+                  <div className="mt-3 p-2.5 rounded-xl bg-red-50/80 border border-red-200 text-red-900 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-red-700">
+                      <AlertCircle size={13} /> Task Returned to Manager:
+                    </div>
+                    <p className="mt-1 text-gray-700 italic">"{followup.status_reason || 'Staff reported an issue.'}"</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -560,6 +610,48 @@ const Followups = () => {
               Finalize & Complete
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Report Issue & Return Task Modal */}
+      <Dialog open={isIssueModalOpen} onOpenChange={setIsIssueModalOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-red-600">
+              <AlertCircle size={18} /> Return Task to Manager
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              If you cannot complete this task for <strong className="text-foreground">{issueFollowup?.lead_name}</strong>, explain the issue below. Your manager will be notified immediately.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleReportIssueSubmit} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 uppercase">Issue Note / Reason *</label>
+              <textarea
+                rows={4}
+                required
+                placeholder="e.g. Customer unavailable, location out of service area, request callback next month..."
+                className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-sm outline-none transition-all"
+                value={issueNote}
+                onChange={(e) => setIssueNote(e.target.value)}
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="ghost" onClick={() => setIsIssueModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSubmittingIssue || !issueNote.trim()}
+                className="bg-red-600 hover:bg-red-700 text-white font-bold"
+              >
+                {isSubmittingIssue ? <Loader2 className="animate-spin mr-2" size={16} /> : <AlertCircle className="mr-2" size={16} />}
+                Send Issue & Return Task
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

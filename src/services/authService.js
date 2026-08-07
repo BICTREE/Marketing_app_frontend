@@ -10,11 +10,39 @@ const authService = {
    */
   login: async (email, password) => {
     const res = await axios.post(`${BASE_URL}/auth/login/`, { email, password });
+    if (res.data.require_otp) {
+      return {
+        require_otp: true,
+        email: res.data.email,
+        masked_email: res.data.masked_email,
+        message: res.data.message
+      };
+    }
     const { access, refresh, user } = res.data;
     localStorage.setItem('access_token', access);
     localStorage.setItem('refresh_token', refresh);
     localStorage.setItem('user', JSON.stringify(user));
     return { access, refresh, user };
+  },
+
+  /**
+   * Verify OTP → POST /auth/verify-otp/
+   */
+  verifyOtp: async (email, otp) => {
+    const res = await axios.post(`${BASE_URL}/auth/verify-otp/`, { email, otp });
+    const { access, refresh, user } = res.data;
+    localStorage.setItem('access_token', access);
+    localStorage.setItem('refresh_token', refresh);
+    localStorage.setItem('user', JSON.stringify(user));
+    return { access, refresh, user };
+  },
+
+  /**
+   * Resend OTP → POST /auth/resend-otp/
+   */
+  resendOtp: async (email) => {
+    const res = await axios.post(`${BASE_URL}/auth/resend-otp/`, { email });
+    return res.data;
   },
 
   /**

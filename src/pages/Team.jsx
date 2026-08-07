@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/api/axios';
-import { Users, Plus, Loader2, User as UserIcon, Shield, ChevronRight, ListTodo, Clock, AlertCircle, Filter, TrendingUp, BarChart3, Target, CheckCircle2, XCircle } from 'lucide-react';
+import { Users, Plus, Loader2, User as UserIcon, Shield, ChevronRight, ListTodo, Clock, AlertCircle, Filter, TrendingUp, BarChart3, Target, CheckCircle2, XCircle, Mail } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -117,7 +117,21 @@ const TeamPage = () => {
     }
   });
 
-  // Fetch Leads for performance metrics
+  // Toggle staff member email notifications
+  const toggleStaffEmailMutation = useMutation({
+    mutationFn: async ({ userId, enabled }) => {
+      const res = await api.patch(`/accounts/users/${userId}/`, { email_notifications_enabled: enabled });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Email notifications for ${data.full_name} set to ${data.email_notifications_enabled ? 'ENABLED' : 'DISABLED'}.`);
+      queryClient.invalidateQueries(['team']);
+      queryClient.invalidateQueries(['admin-team']);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to update email setting.');
+    }
+  });
   const { data: leadsData } = useQuery({
     queryKey: ['leads'],
     queryFn: () => api.get('/leads/leads/').then(res => res.data.results || res.data)
@@ -1083,6 +1097,7 @@ const TeamPage = () => {
                   <TableHead>Role</TableHead>
                   <TableHead>Branch</TableHead>
                   <TableHead>Status</TableHead>
+                  {(isOwner || isManager) && <TableHead>Email Digest</TableHead>}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1113,6 +1128,27 @@ const TeamPage = () => {
                         {member.is_active ? 'Active' : 'Inactive'}
                       </span>
                     </TableCell>
+                    {(isOwner || isManager) && (
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          disabled={toggleStaffEmailMutation.isLoading}
+                          onClick={() => toggleStaffEmailMutation.mutate({
+                            userId: member.id,
+                            enabled: !(member.email_notifications_enabled ?? true)
+                          })}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all border shadow-2xs cursor-pointer ${
+                            member.email_notifications_enabled ?? true
+                              ? 'bg-amber-50 text-[#C9972A] border-amber-300 hover:bg-amber-100'
+                              : 'bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200'
+                          }`}
+                          title={member.email_notifications_enabled ?? true ? 'Click to disable morning email digest' : 'Click to enable morning email digest'}
+                        >
+                          <Mail size={12} />
+                          {member.email_notifications_enabled ?? true ? 'ON' : 'OFF'}
+                        </button>
+                      </TableCell>
+                    )}
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openDetailsModal(member); }}>
                         View Details <ChevronRight size={14} className="ml-1 opacity-50" />
@@ -1121,7 +1157,7 @@ const TeamPage = () => {
                   </TableRow>
                 )) : (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                    <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                       No staff members found.
                     </TableCell>
                   </TableRow>

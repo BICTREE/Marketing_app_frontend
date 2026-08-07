@@ -8,7 +8,7 @@ import authService from '../services/authService';
  *   const { user, isOwner, isManager, isStaff, hasRole, login, logout } = useAuth();
  */
 const useAuth = () => {
-  const { user, isAuthenticated, isLoading, login, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading, login, logout, verifyOtp, resendOtp } = useAuthStore();
 
   const role = (user?.role || '').toLowerCase();
 
@@ -55,6 +55,8 @@ const useAuth = () => {
     /**
      * Logout (calls API + clears state)
      */
+    verifyOtp,
+    resendOtp,
     logout,
 
     /**

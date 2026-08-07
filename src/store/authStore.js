@@ -24,13 +24,35 @@ const useAuthStore = create(
       login: async (email, password) => {
         set({ isLoading: true });
         try {
-          const { user } = await authService.login(email, password);
+          const res = await authService.login(email, password);
+          if (res.require_otp) {
+            set({ isLoading: false });
+            return res;
+          }
+          set({ user: res.user, isAuthenticated: true, isLoading: false });
+          return res.user;
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      // ── Verify OTP ─────────────────────────────────────────────────────────
+      verifyOtp: async (email, otp) => {
+        set({ isLoading: true });
+        try {
+          const { user } = await authService.verifyOtp(email, otp);
           set({ user, isAuthenticated: true, isLoading: false });
           return user;
         } catch (error) {
           set({ isLoading: false });
           throw error;
         }
+      },
+
+      // ── Resend OTP ─────────────────────────────────────────────────────────
+      resendOtp: async (email) => {
+        return await authService.resendOtp(email);
       },
 
       // ── Logout ─────────────────────────────────────────────────────────────
