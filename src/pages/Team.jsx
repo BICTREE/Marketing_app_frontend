@@ -155,6 +155,22 @@ const TeamPage = () => {
       setIsTriggeringDigest(false);
     }
   };
+
+  // Toggle individual staff member email notifications
+  const toggleStaffEmailMutation = useMutation({
+    mutationFn: async ({ userId, enabled }) => {
+      const res = await api.patch(`/accounts/users/${userId}/`, { email_notifications_enabled: enabled });
+      return res.data;
+    },
+    onSuccess: (data) => {
+      toast.success(`Email notifications for ${data.full_name} set to ${data.email_notifications_enabled ? 'ENABLED' : 'DISABLED'}.`);
+      queryClient.invalidateQueries(['team']);
+      queryClient.invalidateQueries(['admin-team']);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to update email setting.');
+    }
+  });
   const { data: leadsData } = useQuery({
     queryKey: ['leads'],
     queryFn: () => api.get('/leads/leads/').then(res => res.data.results || res.data)
