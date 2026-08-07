@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/api/axios';
-import { Users, Plus, Loader2, User as UserIcon, Shield, ChevronRight, ListTodo, Clock, AlertCircle, Filter, TrendingUp, BarChart3, Target, CheckCircle2, XCircle, Mail, RefreshCw, Send } from 'lucide-react';
+import { Users, Plus, Loader2, User as UserIcon, Shield, ChevronRight, ListTodo, Clock, AlertCircle, Filter, TrendingUp, BarChart3, Target, CheckCircle2, XCircle, Mail, RefreshCw, Send, Eye } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -129,6 +129,19 @@ const TeamPage = () => {
 
   const [isTogglingEmail, setIsTogglingEmail] = useState(false);
   const [isTriggeringDigest, setIsTriggeringDigest] = useState(false);
+  const [isPreviewEmailOpen, setIsPreviewEmailOpen] = useState(false);
+  const [previewStaffId, setPreviewStaffId] = useState('');
+
+  // Email Digest Template Preview query
+  const { data: emailPreviewData, isLoading: isLoadingEmailPreview, refetch: refetchEmailPreview } = useQuery({
+    queryKey: ['emailPreview', previewStaffId],
+    queryFn: async () => {
+      const param = previewStaffId ? `?user_id=${previewStaffId}` : '';
+      const res = await api.get(`/accounts/preview-daily-email/${param}`);
+      return res.data;
+    },
+    enabled: isPreviewEmailOpen && (isOwner || isManager),
+  });
 
   const handleToggleGlobalEmail = async () => {
     setIsTogglingEmail(true);
@@ -567,7 +580,17 @@ const TeamPage = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-center">
+            <div className="flex flex-wrap items-center gap-2 self-end sm:self-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPreviewEmailOpen(true)}
+                className="h-9 px-3 border-amber-300 text-[#C9972A] hover:bg-amber-100/60 text-xs font-bold rounded-lg gap-1.5 shadow-sm"
+              >
+                <Eye size={14} />
+                Preview & Send Digest
+              </Button>
+
               <Button
                 variant="outline"
                 size="sm"
@@ -598,6 +621,109 @@ const TeamPage = () => {
           </CardContent>
         </Card>
       )}
+
+      {/* ── Email Template Preview & Direct Send Modal ─────────────────── */}
+      <Dialog open={isPreviewEmailOpen} onOpenChange={setIsPreviewEmailOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-6 bg-white rounded-2xl">
+          <DialogHeader className="border-b pb-3 mb-4">
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-gray-900">
+              <Mail className="text-[#C9972A]" size={22} />
+              Morning Staff Email Digest — Template & Direct Send Preview
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Top controls: Pick Staff to Preview */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-amber-50/70 p-3.5 border border-amber-200 rounded-xl">
+              <div>
+                <label className="text-xs font-bold text-gray-700 block mb-1">
+                  Preview Template For Staff Member:
+                </label>
+                <select
+                  value={previewStaffId}
+                  onChange={(e) => setPreviewStaffId(e.target.value)}
+                  className="px-3 py-1.5 border border-amber-300 rounded-lg text-xs font-semibold bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#C9972A]"
+                >
+                  <option value="">My Account ({user?.full_name || user?.email})</option>
+                  {filteredTeam?.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.full_name} ({m.display_role || m.role}) — {m.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 self-end sm:self-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => refetchEmailPreview()}
+                  className="text-xs h-8 gap-1 font-semibold"
+                >
+                  <RefreshCw size={12} className={isLoadingEmailPreview ? 'animate-spin' : ''} />
+                  Refresh
+                </Button>
+              </div>
+            </div>
+
+            {/* Email Subject Box */}
+            <div className="bg-gray-50 p-3 border rounded-xl">
+              <span className="text-[11px] uppercase font-bold text-gray-500 block mb-0.5">Email Subject Line:</span>
+              <p className="text-sm font-bold text-gray-900">{emailPreviewData?.subject || '☀️ Good Morning! Your Work Plan'}</p>
+            </div>
+
+            {/* Live Template HTML Frame */}
+            <div className="border rounded-xl overflow-hidden bg-gray-100 shadow-inner">
+              <div className="bg-slate-900 text-white text-xs font-bold px-3 py-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Mail size={14} className="text-amber-400" />
+                  Live Email Visual HTML Preview (With Gold Logo & Dynamic Work List)
+                </span>
+                <span className="text-[11px] text-amber-300 font-mono">Recipient: {emailPreviewData?.user_email || user?.email}</span>
+              </div>
+              {isLoadingEmailPreview ? (
+                <div className="p-12 flex flex-col items-center justify-center gap-2 text-gray-500">
+                  <Loader2 className="animate-spin text-[#C9972A]" size={28} />
+                  <span className="text-xs font-semibold">Rendering HTML Email Template...</span>
+                </div>
+              ) : (
+                <iframe
+                  srcDoc={emailPreviewData?.html || ''}
+                  title="Email Template Preview"
+                  className="w-full h-[420px] border-none bg-white"
+                />
+              )}
+            </div>
+
+            {/* Bottom Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t">
+              <p className="text-xs text-gray-500 font-medium">
+                Emails are sent directly via Gmail SMTP with gold branding logo & daily work summaries.
+              </p>
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsPreviewEmailOpen(false)}
+                  className="text-xs font-semibold"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={async () => {
+                    await handleTriggerDigestNow();
+                    setIsPreviewEmailOpen(false);
+                  }}
+                  disabled={isTriggeringDigest}
+                  className="bg-[#C9972A] hover:bg-[#7A5500] text-white font-bold text-xs gap-1.5 px-4 shadow-md"
+                >
+                  <Send size={14} className={isTriggeringDigest ? 'animate-spin' : ''} />
+                  {isTriggeringDigest ? 'Sending Emails...' : 'Send Morning Digest Now'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Tabs defaultValue="directory" className="w-full">
         <TabsList className="mb-4">
