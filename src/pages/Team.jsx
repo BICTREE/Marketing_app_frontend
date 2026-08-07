@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/api/axios';
-import { Users, Plus, Loader2, User as UserIcon, Shield, ChevronRight, ListTodo, Clock, AlertCircle, Filter, TrendingUp, BarChart3, Target, CheckCircle2, XCircle, Mail } from 'lucide-react';
+import { Users, Plus, Loader2, User as UserIcon, Shield, ChevronRight, ListTodo, Clock, AlertCircle, Filter, TrendingUp, BarChart3, Target, CheckCircle2, XCircle, Mail, RefreshCw, Send } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -117,21 +117,44 @@ const TeamPage = () => {
     }
   });
 
-  // Toggle staff member email notifications
-  const toggleStaffEmailMutation = useMutation({
-    mutationFn: async ({ userId, enabled }) => {
-      const res = await api.patch(`/accounts/users/${userId}/`, { email_notifications_enabled: enabled });
+  // System Setting for Daily Staff Email Notifications
+  const { data: emailSettingData, refetch: refetchEmailSetting } = useQuery({
+    queryKey: ['systemSettingDailyEmails'],
+    queryFn: async () => {
+      const res = await api.get('/accounts/system-settings/toggle-daily-emails/');
       return res.data;
     },
-    onSuccess: (data) => {
-      toast.success(`Email notifications for ${data.full_name} set to ${data.email_notifications_enabled ? 'ENABLED' : 'DISABLED'}.`);
-      queryClient.invalidateQueries(['team']);
-      queryClient.invalidateQueries(['admin-team']);
-    },
-    onError: (err) => {
-      toast.error(err.response?.data?.detail || 'Failed to update email setting.');
-    }
+    enabled: isOwner || isManager,
   });
+
+  const [isTogglingEmail, setIsTogglingEmail] = useState(false);
+  const [isTriggeringDigest, setIsTriggeringDigest] = useState(false);
+
+  const handleToggleGlobalEmail = async () => {
+    setIsTogglingEmail(true);
+    try {
+      const current = emailSettingData?.enabled ?? true;
+      const res = await api.post('/accounts/system-settings/toggle-daily-emails/', { enabled: !current });
+      toast.success(res.data?.message || 'Email notification setting updated!');
+      refetchEmailSetting();
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to update email setting.');
+    } finally {
+      setIsTogglingEmail(false);
+    }
+  };
+
+  const handleTriggerDigestNow = async () => {
+    setIsTriggeringDigest(true);
+    try {
+      const res = await api.post('/accounts/trigger-daily-emails/', { force: true });
+      toast.success(`Digest trigger completed! ${res.data?.result?.sent || 0} emails sent.`);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Failed to trigger morning emails.');
+    } finally {
+      setIsTriggeringDigest(false);
+    }
+  };
   const { data: leadsData } = useQuery({
     queryKey: ['leads'],
     queryFn: () => api.get('/leads/leads/').then(res => res.data.results || res.data)
@@ -499,7 +522,6 @@ const TeamPage = () => {
               ))}
             </select>
           </div>
-          {/* Add Staff Button - Check permissions */}
           {(isOwner || isManager || user?.permissions?.can_add_staff) && (
             <Button className="gap-2" onClick={() => setIsCreateOpen(true)}>
               <Plus size={16} /> Add Staff
@@ -507,6 +529,59 @@ const TeamPage = () => {
           )}
         </div>
       </div>
+
+      {/* ── Gmail / Staff Morning Email Notification Settings ────────────── */}
+      {(isOwner || isManager) && (
+        <Card className="border-amber-200/80 bg-gradient-to-r from-amber-50/70 via-white to-amber-50/40 shadow-sm rounded-xl overflow-hidden mb-4">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold transition-all ${emailSettingData?.enabled ?? true ? 'bg-amber-100 text-[#C9972A] border border-amber-200' : 'bg-gray-100 text-gray-400 border border-gray-200'}`}>
+                <Mail size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-gray-900 text-sm">Staff Daily Morning Email Digest Settings</h4>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${emailSettingData?.enabled ?? true ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
+                    {emailSettingData?.enabled ?? true ? '● ACTIVE (09:00 AM Daily)' : '○ DISABLED BY ADMIN'}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Master switch for 09:00 AM work plan & birthday emails sent via Gmail to active staff members.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-center">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isTogglingEmail}
+                onClick={handleToggleGlobalEmail}
+                className={`h-9 px-3 text-xs font-bold rounded-lg transition-all ${emailSettingData?.enabled ?? true ? 'border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300'}`}
+              >
+                {isTogglingEmail ? (
+                  <RefreshCw size={12} className="animate-spin mr-1" />
+                ) : emailSettingData?.enabled ?? true ? (
+                  <>Turn Off Daily Staff Emails</>
+                ) : (
+                  <>Turn On Daily Staff Emails</>
+                )}
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleTriggerDigestNow}
+                disabled={isTriggeringDigest}
+                className="h-9 px-3 text-[#C9972A] hover:bg-amber-50 text-xs font-bold rounded-lg"
+              >
+                <Send size={13} className={`mr-1 ${isTriggeringDigest ? 'animate-spin' : ''}`} />
+                {isTriggeringDigest ? 'Sending...' : 'Send Test Digest Now'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="directory" className="w-full">
         <TabsList className="mb-4">

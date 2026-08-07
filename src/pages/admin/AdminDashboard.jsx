@@ -15,6 +15,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
+import toast from 'react-hot-toast';
 import { normalizeGrams } from '@/lib/utils';
 import { KPICard } from '@/components/dashboard/KPICard';
 import { ChartCard, ChartTooltip, EmptyChart } from '@/components/dashboard/ChartWidget';
