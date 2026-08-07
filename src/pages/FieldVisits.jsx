@@ -445,6 +445,27 @@ const FieldVisitsPage = () => {
 
   useEffect(() => {
     if (!canManageVisits && navigator.geolocation) {
+      const flushOfflineQueue = async () => {
+        try {
+          const raw = localStorage.getItem('OFFLINE_GPS_QUEUE');
+          if (!raw) return;
+          const queue = JSON.parse(raw);
+          if (Array.isArray(queue) && queue.length > 0) {
+            await api.post('/field-visits/location-tracking/batch-sync/', { waypoints: queue });
+            localStorage.removeItem('OFFLINE_GPS_QUEUE');
+          }
+        } catch (e) {}
+      };
+
+      const queueOfflinePing = (ping) => {
+        try {
+          const raw = localStorage.getItem('OFFLINE_GPS_QUEUE');
+          const queue = raw ? JSON.parse(raw) : [];
+          queue.push(ping);
+          localStorage.setItem('OFFLINE_GPS_QUEUE', JSON.stringify(queue.slice(-200)));
+        } catch (e) {}
+      };
+
       const watchId = navigator.geolocation.watchPosition(
         (position) => {
           setUserLocation({
@@ -454,14 +475,19 @@ const FieldVisitsPage = () => {
           });
           
           const activeVisit = filteredVisits.find(v => v.status === 'active' && v.start_lat);
-          api.post('/field-visits/location-tracking/', {
+          const payload = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             accuracy: position.coords.accuracy,
             speed: position.coords.speed || 0,
             is_gps_on: true,
-            field_visit: activeVisit ? activeVisit.id : null
-          }).catch(err => console.error('Tracking ping error:', err));
+            field_visit: activeVisit ? activeVisit.id : null,
+            timestamp: new Date().toISOString()
+          };
+
+          api.post('/field-visits/location-tracking/', payload)
+            .then(() => flushOfflineQueue())
+            .catch(() => queueOfflinePing(payload));
         },
         (error) => {
           // If GPS is disabled or permission denied, report GPS OFF status
