@@ -35,6 +35,16 @@ const safeFormat = (dateStr, formatStr, fallback = '—') => {
   }
 };
 
+const getBearing = (lat1, lng1, lat2, lng2) => {
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos((lat2 * Math.PI) / 180);
+  const x =
+    Math.cos((lat1 * Math.PI) / 180) * Math.sin((lat2 * Math.PI) / 180) -
+    Math.sin((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.cos(dLng);
+  const brng = (Math.atan2(y, x) * 180) / Math.PI;
+  return (brng + 360) % 360;
+};
+
 const MapRecenter = ({ center, zoom = 14 }) => {
   const map = useMap();
   useEffect(() => {
@@ -121,15 +131,59 @@ const VisitRoadmapSubMap = ({ visit }) => {
 
           <SubMapRecenter points={latLngList} />
 
-          {/* Polyline Route Trail */}
+          {/* Polyline Route Trail with Casing & Motion */}
           {latLngList.length > 1 && (
-            <Polyline
-              positions={latLngList}
-              color="#3B82F6"
-              weight={4}
-              opacity={0.85}
-              dashArray="6, 8"
-            />
+            <React.Fragment>
+              {/* Outer Dark Casing */}
+              <Polyline
+                positions={latLngList}
+                color="#1E293B"
+                weight={8}
+                opacity={0.65}
+              />
+              {/* Main Navigation Blue Line */}
+              <Polyline
+                positions={latLngList}
+                color="#2563EB"
+                weight={4}
+                opacity={0.95}
+              />
+              {/* White Motion Dash */}
+              <Polyline
+                positions={latLngList}
+                color="#FFFFFF"
+                weight={2}
+                dashArray="6, 12"
+                opacity={0.8}
+              />
+              {/* Directional Arrows Along Segments */}
+              {latLngList.slice(0, -1).map((pt, idx) => {
+                const nextPt = latLngList[idx + 1];
+                const midLat = (pt[0] + nextPt[0]) / 2;
+                const midLng = (pt[1] + nextPt[1]) / 2;
+                const angle = getBearing(pt[0], pt[1], nextPt[0], nextPt[1]);
+                return (
+                  <Marker
+                    key={`sub-arrow-${idx}`}
+                    position={[midLat, midLng]}
+                    icon={L.divIcon({
+                      className: 'route-direction-arrow',
+                      html: `<div style="
+                        transform: rotate(${angle}deg);
+                        color: #10B981;
+                        font-size: 13px;
+                        font-weight: 900;
+                        line-height: 1;
+                        filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.7));
+                        display:flex;align-items:center;justify-content:center;
+                      ">▲</div>`,
+                      iconSize: [16, 16],
+                      iconAnchor: [8, 8],
+                    })}
+                  />
+                );
+              })}
+            </React.Fragment>
           )}
 
           {/* Start Pin */}
@@ -984,12 +1038,14 @@ const FieldVisitsPage = () => {
                   
                   return (
                     <React.Fragment>
+                      {/* Outer Dark Road Border */}
                       <Polyline
                         positions={trailPoints}
-                        color="rgba(0,0,0,0.15)"
-                        weight={10}
-                        opacity={1}
+                        color="#0F172A"
+                        weight={9}
+                        opacity={0.7}
                       />
+                      {/* Gradient Colored Segments */}
                       {TRAIL_COLORS.map((color, segIdx) => {
                         const start = segIdx * segmentSize;
                         const end = Math.min(start + segmentSize + 1, trailPoints.length);
@@ -1000,17 +1056,45 @@ const FieldVisitsPage = () => {
                             positions={trailPoints.slice(start, end)}
                             color={color}
                             weight={5}
-                            opacity={0.9}
+                            opacity={0.95}
                           />
                         );
                       })}
+                      {/* White Motion Dash */}
                       <Polyline
                         positions={trailPoints}
                         color="#ffffff"
-                        weight={1.5}
-                        dashArray="6, 14"
-                        opacity={0.7}
+                        weight={2}
+                        dashArray="8, 14"
+                        opacity={0.85}
                       />
+                      {/* Directional Movement Arrows */}
+                      {trailPoints.slice(0, -1).map((pt, idx) => {
+                        const nextPt = trailPoints[idx + 1];
+                        const midLat = (pt[0] + nextPt[0]) / 2;
+                        const midLng = (pt[1] + nextPt[1]) / 2;
+                        const angle = getBearing(pt[0], pt[1], nextPt[0], nextPt[1]);
+                        return (
+                          <Marker
+                            key={`main-arrow-${idx}`}
+                            position={[midLat, midLng]}
+                            icon={L.divIcon({
+                              className: 'route-direction-arrow',
+                              html: `<div style="
+                                transform: rotate(${angle}deg);
+                                color: #10B981;
+                                font-size: 14px;
+                                font-weight: 900;
+                                line-height: 1;
+                                filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.8));
+                                display:flex;align-items:center;justify-content:center;
+                              ">▲</div>`,
+                              iconSize: [16, 16],
+                              iconAnchor: [8, 8],
+                            })}
+                          />
+                        );
+                      })}
 
                       {/* 🏁 Start Pin */}
                       <Marker
