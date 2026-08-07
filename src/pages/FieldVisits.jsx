@@ -45,6 +45,171 @@ const MapRecenter = ({ center, zoom = 14 }) => {
   return null;
 };
 
+const SubMapRecenter = ({ points }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (points && points.length > 0) {
+      if (points.length === 1) {
+        map.setView(points[0], 15);
+      } else {
+        const bounds = L.latLngBounds(points);
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+      }
+    }
+  }, [points, map]);
+  return null;
+};
+
+const VisitRoadmapSubMap = ({ visit }) => {
+  if (!visit) return null;
+
+  const points = [];
+  if (visit.start_lat && visit.start_lng) points.push({ type: 'start', lat: parseFloat(visit.start_lat), lng: parseFloat(visit.start_lng), label: '🏁 Start Point' });
+  
+  if (visit.checkins && visit.checkins.length > 0) {
+    visit.checkins.forEach((c, idx) => {
+      if (c.lat && c.lng) {
+        points.push({ type: 'checkin', lat: parseFloat(c.lat), lng: parseFloat(c.lng), label: `📍 Check-in #${idx + 1}`, time: c.timestamp });
+      }
+    });
+  }
+
+  if (visit.location_updates && visit.location_updates.length > 0) {
+    visit.location_updates.forEach((lu, idx) => {
+      if (lu.latitude && lu.longitude) {
+        points.push({ type: 'ping', lat: parseFloat(lu.latitude), lng: parseFloat(lu.longitude), time: lu.timestamp });
+      }
+    });
+  }
+
+  if (visit.end_lat && visit.end_lng) points.push({ type: 'end', lat: parseFloat(visit.end_lat), lng: parseFloat(visit.end_lng), label: '🔴 End Location' });
+  if (visit.lead_lat && visit.lead_lng) points.push({ type: 'lead', lat: parseFloat(visit.lead_lat), lng: parseFloat(visit.lead_lng), label: `🎯 Lead: ${visit.lead_name || 'Client'}` });
+
+  const latLngList = points.map(p => [p.lat, p.lng]);
+
+  if (latLngList.length === 0) {
+    return (
+      <div className="p-3 bg-muted/20 border border-dashed border-border/60 rounded-xl text-center text-xs text-muted-foreground">
+        🗺️ No GPS coordinates recorded for this visit yet.
+      </div>
+    );
+  }
+
+  const center = latLngList[0];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-foreground flex items-center gap-1.5">
+          <Navigation size={15} className="text-[#C9972A]" /> Visit GPS Journey Roadmap
+        </h3>
+        <span className="text-[11px] font-bold text-[#0F6E56] bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+          {latLngList.length} GPS Points Recorded
+        </span>
+      </div>
+      
+      <div className="h-[220px] w-full rounded-xl overflow-hidden border border-border/80 shadow-sm relative z-0">
+        <MapContainer
+          center={center}
+          zoom={14}
+          style={{ height: '100%', width: '100%', zIndex: 0 }}
+        >
+          <TileLayer
+            attribution='&copy; OpenStreetMap'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+
+          <SubMapRecenter points={latLngList} />
+
+          {/* Polyline Route Trail */}
+          {latLngList.length > 1 && (
+            <Polyline
+              positions={latLngList}
+              color="#3B82F6"
+              weight={4}
+              opacity={0.85}
+              dashArray="6, 8"
+            />
+          )}
+
+          {/* Start Pin */}
+          {visit.start_lat && visit.start_lng && (
+            <Marker
+              position={[parseFloat(visit.start_lat), parseFloat(visit.start_lng)]}
+              icon={L.divIcon({
+                className: '',
+                html: `<div style="display:flex;flex-direction:column;align-items:center;width:70px;">
+                  <div style="background:#10B981;color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🏁 Start</div>
+                </div>`,
+                iconSize: [70, 24],
+                iconAnchor: [35, 12],
+                popupAnchor: [0, -12]
+              })}
+            >
+              <Popup><strong>🏁 Start Location</strong><br/>{Number(visit.start_lat).toFixed(6)}, {Number(visit.start_lng).toFixed(6)}</Popup>
+            </Marker>
+          )}
+
+          {/* Checkin Waypoints */}
+          {visit.checkins?.map((c, idx) => (
+            c.lat && c.lng && (
+              <Marker
+                key={`subcheckin-${c.id || idx}`}
+                position={[parseFloat(c.lat), parseFloat(c.lng)]}
+                icon={L.divIcon({
+                  className: '',
+                  html: `<div style="width:18px;height:18px;background:#8B5CF6;color:#fff;border-radius:50%;border:2px solid #fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.3);">${idx + 1}</div>`,
+                  iconSize: [18, 18],
+                  iconAnchor: [9, 9],
+                  popupAnchor: [0, -9]
+                })}
+              >
+                <Popup><strong>📍 Check-in #{idx + 1}</strong><br/>{c.timestamp ? new Date(c.timestamp).toLocaleTimeString() : ''}</Popup>
+              </Marker>
+            )
+          ))}
+
+          {/* End Pin */}
+          {visit.end_lat && visit.end_lng && (
+            <Marker
+              position={[parseFloat(visit.end_lat), parseFloat(visit.end_lng)]}
+              icon={L.divIcon({
+                className: '',
+                html: `<div style="display:flex;flex-direction:column;align-items:center;width:70px;">
+                  <div style="background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🔴 End</div>
+                </div>`,
+                iconSize: [70, 24],
+                iconAnchor: [35, 12],
+                popupAnchor: [0, -12]
+              })}
+            >
+              <Popup><strong>🔴 End Location</strong><br/>{Number(visit.end_lat).toFixed(6)}, {Number(visit.end_lng).toFixed(6)}</Popup>
+            </Marker>
+          )}
+
+          {/* Client Destination Pin */}
+          {visit.lead_lat && visit.lead_lng && (
+            <Marker
+              position={[parseFloat(visit.lead_lat), parseFloat(visit.lead_lng)]}
+              icon={L.divIcon({
+                className: '',
+                html: `<div style="display:flex;flex-direction:column;align-items:center;width:100px;">
+                  <div style="background:#1A5490;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🎯 ${visit.lead_name || 'Client'}</div>
+                </div>`,
+                iconSize: [100, 24],
+                iconAnchor: [50, 12],
+                popupAnchor: [0, -12]
+              })}
+            >
+              <Popup><strong>🎯 Destination Client</strong><br/>{visit.lead_name}<br/>{visit.lead_phone}</Popup>
+            </Marker>
+          )}
+        </MapContainer>
+      </div>
+    </div>
+  );
+};
+
 const FieldVisitsPage = () => {
   const { user, hasPermission } = useAuth();
   const isManagerOrAbove = user?.role === 'owner' || user?.role === 'admin' || user?.role === 'manager' || user?.is_superuser;
@@ -343,7 +508,11 @@ const FieldVisitsPage = () => {
               {/* Staff Filter */}
               <select 
                 value={selectedStaff}
-                onChange={(e) => setSelectedStaff(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedStaff(val);
+                  setSelectedTrackedStaff(val);
+                }}
                 className="px-3 py-2 border rounded-md bg-background text-sm"
               >
                 <option value="all">All Staff</option>
@@ -613,7 +782,9 @@ const FieldVisitsPage = () => {
                   <select
                     value={selectedTrackedStaff}
                     onChange={(e) => {
-                      setSelectedTrackedStaff(e.target.value);
+                      const val = e.target.value;
+                      setSelectedTrackedStaff(val);
+                      setSelectedStaff(val);
                       setFocusedLocation(null);
                     }}
                     className="text-xs font-bold bg-transparent outline-none cursor-pointer max-w-[180px]"
@@ -991,8 +1162,8 @@ const FieldVisitsPage = () => {
                   );
                 })()}
 
-                {/* ── 2. LIVE FIELD STAFF MAP PINS (Controlled by Toggle) ── */}
-                {showStaffPins && liveTrackingData?.map((loc, i) => {
+                {/* ── 2. LIVE FIELD STAFF MAP PINS (Controlled by Toggle & Staff Filter) ── */}
+                {showStaffPins && (selectedTrackedStaff === 'all' ? liveTrackingData : liveTrackingData?.filter(loc => String(loc.staff_id) === String(selectedTrackedStaff)))?.map((loc, i) => {
                   const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4'];
                   const color = staffColors[i % staffColors.length];
                   const firstName = (loc.staff_name || 'Staff').split(' ')[0];
@@ -1327,6 +1498,9 @@ const FieldVisitsPage = () => {
           
           {selectedVisit && (
             <div className="space-y-6">
+              {/* Interactive Roadmap Sub-Map at Top of Visit Details */}
+              <VisitRoadmapSubMap visit={selectedVisit} />
+
               {/* Visit Header */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
