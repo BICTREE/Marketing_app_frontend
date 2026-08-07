@@ -357,7 +357,9 @@ const FieldVisitsPage = () => {
     const connectWs = () => {
       try {
         setWsStatus('connecting');
-        ws = new WebSocket('wss://apimarketing.bindujewellery.com/ws/live-tracking/');
+        const token = localStorage.getItem('token') || localStorage.getItem('access_token');
+        const wsUrl = `wss://apimarketing.bindujewellery.com/ws/live-tracking/${token ? '?token=' + encodeURIComponent(token) : ''}`;
+        ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {
           setWsStatus('connected');
