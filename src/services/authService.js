@@ -74,8 +74,11 @@ const authService = {
     const refresh = localStorage.getItem('refresh_token');
     if (!refresh) throw new Error('No refresh token');
     const res = await axios.post(`${BASE_URL}/auth/refresh/`, { refresh });
-    const { access } = res.data;
+    const { access, refresh: newRefresh } = res.data;
     localStorage.setItem('access_token', access);
+    if (newRefresh) {
+      localStorage.setItem('refresh_token', newRefresh);
+    }
     return access;
   },
 
