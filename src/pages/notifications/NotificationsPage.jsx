@@ -82,10 +82,18 @@ const NotificationsPage = () => {
   });
 
   const reviewVisitId = selectedReviewNotif?.data?.visit_id;
+  const reviewLeadId = selectedReviewNotif?.data?.lead_id;
+
   const { data: fullVisitDetails, isLoading: isVisitLoading } = useQuery({
     queryKey: ['review-visit-details', reviewVisitId],
     queryFn: () => api.get(`/field-visits/field-visits/${reviewVisitId}/`).then(res => res.data),
     enabled: !!reviewVisitId
+  });
+
+  const { data: fullLeadDetails } = useQuery({
+    queryKey: ['review-lead-details', reviewLeadId],
+    queryFn: () => api.get(`/leads/leads/${reviewLeadId}/`).then(res => res.data),
+    enabled: !!reviewLeadId
   });
 
   const managerDecisionMutation = useMutation({
@@ -319,7 +327,11 @@ const NotificationsPage = () => {
                   key={notif.id} 
                   onClick={() => {
                     if (!notif.is_read) markReadMutation.mutate(notif.id);
-                    if (notif.data?.type === 'field_visit_outcome' || notif.data?.type === 'field_visit_report') {
+                    if (
+                      ['field_visit_outcome', 'field_visit_report', 'visit_returned', 'followup_returned'].includes(notif.data?.type) ||
+                      ['visit_returned', 'followup_returned'].includes(notif.data?.action) ||
+                      notif.data?.visit_id || notif.data?.lead_id
+                    ) {
                       setSelectedReviewNotif(notif);
                     }
                   }}
@@ -397,12 +409,50 @@ const NotificationsPage = () => {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-900">
-              👑 Manager Field Visit Review & Decision
+              {selectedReviewNotif?.data?.action === 'visit_returned' || selectedReviewNotif?.data?.action === 'followup_returned'
+                ? '⚠️ Manager Review & Issue Resolution'
+                : '👑 Manager Field Visit Review & Decision'
+              }
             </DialogTitle>
           </DialogHeader>
 
           {selectedReviewNotif && (
             <div className="space-y-4 pt-2">
+              {/* Issue Note Callout if returned */}
+              {(selectedReviewNotif.data?.issue_note || selectedReviewNotif.data?.action === 'visit_returned' || selectedReviewNotif.data?.action === 'followup_returned') && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3 space-y-1 text-xs text-rose-950 shadow-sm">
+                  <p className="font-bold flex items-center gap-1.5 text-rose-900">
+                    ⚠️ Reported Staff Issue / Note:
+                  </p>
+                  <p className="font-semibold text-rose-800 leading-relaxed whitespace-pre-wrap">
+                    "{selectedReviewNotif.data?.issue_note || selectedReviewNotif.body}"
+                  </p>
+                  {selectedReviewNotif.data?.staff_name && (
+                    <p className="text-[10px] text-rose-700 pt-0.5 font-medium">
+                      Reported by: {selectedReviewNotif.data.staff_name}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Lead Profile Brief */}
+              {fullLeadDetails && (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5 text-xs text-slate-800 shadow-sm">
+                  <div className="flex justify-between items-center border-b border-slate-200 pb-1">
+                    <p className="font-bold text-slate-900 text-sm">{fullLeadDetails.name}</p>
+                    <span className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded text-[10px] font-bold uppercase">
+                      Stage: {fullLeadDetails.stage}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-0.5">
+                    <div>📞 Phone: <span className="font-semibold">{fullLeadDetails.phone}</span></div>
+                    <div>🏢 Branch: <span className="font-semibold">{fullLeadDetails.branch_name || 'Main Branch'}</span></div>
+                    <div>👤 Assigned: <span className="font-semibold">{fullLeadDetails.assigned_to_name || 'Unassigned'}</span></div>
+                    <div>🔥 Temp: <span className="font-semibold uppercase">{fullLeadDetails.customer?.temperature || 'Warm'}</span></div>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs text-amber-950 shadow-sm">
                 <div className="flex justify-between items-start border-b border-amber-200/60 pb-2">
                   <div>
@@ -418,26 +468,28 @@ const NotificationsPage = () => {
 
                 {isVisitLoading ? (
                   <div className="flex items-center gap-2 py-2 text-amber-800">
-                    <Loader2 className="animate-spin" size={14} /> Loading detailed visit report from staff...
+                    <Loader2 className="animate-spin" size={14} /> Loading detailed visit report...
                   </div>
                 ) : (
                   <div className="space-y-2 pt-1">
                     {/* Staff Submitted Notes */}
-                    <div className="bg-white/90 border border-amber-200 rounded-lg p-2.5 space-y-1">
-                      <p className="font-bold text-[11px] text-amber-900 flex items-center gap-1.5">
-                        ✍️ Staff Submitted Report & Notes:
-                      </p>
-                      <p className="text-xs text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">
-                        {fullVisitDetails?.report?.notes || fullVisitDetails?.notes || selectedReviewNotif.data?.report_notes || 'No notes provided by staff.'}
-                      </p>
-                    </div>
+                    {(fullVisitDetails?.report?.notes || fullVisitDetails?.notes || selectedReviewNotif.data?.report_notes) && (
+                      <div className="bg-white/90 border border-amber-200 rounded-lg p-2.5 space-y-1">
+                        <p className="font-bold text-[11px] text-amber-900 flex items-center gap-1.5">
+                          ✍️ Staff Submitted Notes:
+                        </p>
+                        <p className="text-xs text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">
+                          {fullVisitDetails?.report?.notes || fullVisitDetails?.notes || selectedReviewNotif.data?.report_notes}
+                        </p>
+                      </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 text-amber-900 font-medium">
-                      {fullVisitDetails?.staff_name && (
-                        <div>👤 Field Staff: <span className="font-bold">{fullVisitDetails.staff_name}</span></div>
+                      {(fullVisitDetails?.staff_name || selectedReviewNotif.data?.staff_name) && (
+                        <div>👤 Staff: <span className="font-bold">{fullVisitDetails?.staff_name || selectedReviewNotif.data?.staff_name}</span></div>
                       )}
-                      {fullVisitDetails?.lead_name && (
-                        <div>📞 Lead/Client: <span className="font-bold">{fullVisitDetails.lead_name}</span></div>
+                      {(fullVisitDetails?.lead_name || selectedReviewNotif.data?.lead_name) && (
+                        <div>📞 Client: <span className="font-bold">{fullVisitDetails?.lead_name || selectedReviewNotif.data?.lead_name}</span></div>
                       )}
                       {(fullVisitDetails?.lead_lat || selectedReviewNotif.data?.expected_grams) && (
                         <div>🏅 Gold Intention: <span className="font-bold">{selectedReviewNotif.data?.expected_grams || 'Specified'} Grams</span></div>
