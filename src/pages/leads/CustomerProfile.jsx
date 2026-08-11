@@ -13,10 +13,24 @@ import { ArrowLeft, Users, Loader2, AlertCircle } from 'lucide-react';
 const useResolvedCustomerId = (rawId) => {
   const customerQuery = useQuery({
     queryKey: ['customer-resolve', rawId],
-    queryFn: () => api.get(`/leads/customers/${rawId}/`).then(r => r.data),
+    queryFn: async () => {
+      try {
+        const res = await api.get(`/leads/customers/${rawId}/`);
+        return res.data;
+      } catch (err) {
+        // Fallback: If rawId is a Lead ID (e.g. /leads/6), fetch lead & get linked customer
+        const leadRes = await api.get(`/leads/leads/${rawId}/`);
+        const cId = leadRes.data?.customer?.id || leadRes.data?.customer || leadRes.data?.customer_id;
+        if (cId) {
+          const custRes = await api.get(`/leads/customers/${cId}/`);
+          return custRes.data;
+        }
+        throw err;
+      }
+    },
     enabled: !!rawId,
     retry: 1,
-    staleTime: 30_000,
+    staleTime: 10_000,
   });
 
   return {
