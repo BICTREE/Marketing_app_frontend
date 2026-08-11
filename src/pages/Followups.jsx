@@ -382,33 +382,37 @@ const Followups = () => {
                       <CheckCircle2 size={13} className="mr-1" /> Mark Done
                     </Button>
 
-                    <Button 
-                      variant="outline"
-                      size="sm"
-                      className="h-8 border-amber-300 text-amber-900 hover:bg-amber-50 font-bold text-xs"
-                      onClick={() => {
-                        setEditFollowup(followup);
-                        setEditDate(followup.scheduled_date ? followup.scheduled_date.slice(0, 16) : '');
-                        setEditNote(followup.note || '');
-                        setEditPriority(followup.priority || 'medium');
-                        setIsEditModalOpen(true);
-                      }}
-                    >
-                      ✏️ Edit
-                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        className="h-8 border-amber-300 text-amber-900 hover:bg-amber-50 font-bold text-xs"
+                        onClick={() => {
+                          setEditFollowup(followup);
+                          setEditDate(followup.scheduled_date ? followup.scheduled_date.slice(0, 16) : '');
+                          setEditNote(followup.note || '');
+                          setEditPriority(followup.priority || 'medium');
+                          setIsEditModalOpen(true);
+                        }}
+                      >
+                        ✏️ Edit
+                      </Button>
+                    )}
 
-                    <Button 
-                      variant="outline"
-                      size="sm"
-                      className="h-8 border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs"
-                      onClick={() => {
-                        setCancelFollowup(followup);
-                        setCancelReason('');
-                        setIsCancelModalOpen(true);
-                      }}
-                    >
-                      🗑️ Cancel
-                    </Button>
+                    {isAdmin && (
+                      <Button 
+                        variant="outline"
+                        size="sm"
+                        className="h-8 border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs"
+                        onClick={() => {
+                          setCancelFollowup(followup);
+                          setCancelReason('');
+                          setIsCancelModalOpen(true);
+                        }}
+                      >
+                        🗑️ Cancel
+                      </Button>
+                    )}
 
                     <Button 
                       variant="outline"
