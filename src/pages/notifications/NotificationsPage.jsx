@@ -512,58 +512,78 @@ const NotificationsPage = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                <Button 
-                  size="sm" 
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs"
+              {/* Primary Action: Save Manager Review Note */}
+              <div className="space-y-2 pt-2">
+                <Button
+                  size="sm"
+                  className="w-full bg-[#0F6E56] hover:bg-[#094d3c] text-white font-semibold text-xs py-2 shadow"
                   onClick={() => managerDecisionMutation.mutate({ 
                     leadId: selectedReviewNotif.data.lead_id, 
-                    decision: 'convert' 
+                    decision: 'save_note' 
                   })}
-                  disabled={managerDecisionMutation.isPending}
+                  disabled={managerDecisionMutation.isPending || !managerNotes.trim()}
                 >
-                  ✓ Mark Converted
+                  {managerDecisionMutation.isPending ? <Loader2 className="animate-spin mr-1.5" size={14} /> : null}
+                  💾 Save Manager Note to Lead Profile Log
                 </Button>
 
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  className="border-rose-300 text-rose-700 hover:bg-rose-50 font-medium text-xs"
-                  onClick={() => managerDecisionMutation.mutate({ 
-                    leadId: selectedReviewNotif.data.lead_id, 
-                    decision: 'mark_lost',
-                    extraPayload: { lost_reason: managerNotes } 
-                  })}
-                  disabled={managerDecisionMutation.isPending}
-                >
-                  ✕ Mark Lost
-                </Button>
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  {fullLeadDetails?.stage !== 'converted' && (
+                    <Button 
+                      size="sm" 
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs"
+                      onClick={() => managerDecisionMutation.mutate({ 
+                        leadId: selectedReviewNotif.data.lead_id, 
+                        decision: 'convert' 
+                      })}
+                      disabled={managerDecisionMutation.isPending}
+                    >
+                      ✓ Mark Converted
+                    </Button>
+                  )}
 
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  className="border-amber-300 text-amber-800 hover:bg-amber-50 font-medium text-xs"
-                  onClick={() => managerDecisionMutation.mutate({ 
-                    leadId: selectedReviewNotif.data.lead_id, 
-                    decision: 'schedule_visit' 
-                  })}
-                  disabled={managerDecisionMutation.isPending}
-                >
-                  📅 Schedule Next Visit
-                </Button>
+                  {fullLeadDetails?.stage !== 'lost' && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      className="border-rose-300 text-rose-700 hover:bg-rose-50 font-medium text-xs"
+                      onClick={() => managerDecisionMutation.mutate({ 
+                        leadId: selectedReviewNotif.data.lead_id, 
+                        decision: 'mark_lost',
+                        extraPayload: { lost_reason: managerNotes } 
+                      })}
+                      disabled={managerDecisionMutation.isPending}
+                    >
+                      ✕ Mark Lost
+                    </Button>
+                  )}
 
-                <Button 
-                  size="sm" 
-                  variant="outline"
-                  className="border-amber-300 text-amber-800 hover:bg-amber-50 font-medium text-xs"
-                  onClick={() => managerDecisionMutation.mutate({ 
-                    leadId: selectedReviewNotif.data.lead_id, 
-                    decision: 'schedule_followup' 
-                  })}
-                  disabled={managerDecisionMutation.isPending}
-                >
-                  📞 Schedule Call
-                </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="border-amber-300 text-amber-800 hover:bg-amber-50 font-medium text-xs"
+                    onClick={() => managerDecisionMutation.mutate({ 
+                      leadId: selectedReviewNotif.data.lead_id, 
+                      decision: 'schedule_visit' 
+                    })}
+                    disabled={managerDecisionMutation.isPending}
+                  >
+                    📅 Schedule Next Visit
+                  </Button>
+
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    className="border-amber-300 text-amber-800 hover:bg-amber-50 font-medium text-xs"
+                    onClick={() => managerDecisionMutation.mutate({ 
+                      leadId: selectedReviewNotif.data.lead_id, 
+                      decision: 'schedule_followup' 
+                    })}
+                    disabled={managerDecisionMutation.isPending}
+                  >
+                    📞 Schedule Call
+                  </Button>
+                </div>
               </div>
             </div>
           )}
