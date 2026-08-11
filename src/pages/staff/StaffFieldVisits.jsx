@@ -57,9 +57,9 @@ const StaffFieldVisits = () => {
 
   const visits = visitsData || [];
   // A visit is active (in progress) if status is 'active' AND start_lat is populated
-  const activeVisit = visits.find(v => v.status === 'active' && v.start_lat);
-  // A visit is scheduled/assigned if status is 'active' AND start_lat is null
-  const scheduledVisits = visits.filter(v => v.status === 'active' && !v.start_lat);
+  const activeVisit = visits.find(v => v.status === 'active' && v.start_lat !== null && v.start_lat !== undefined);
+  // A visit is scheduled/assigned if status is 'active' AND (start_lat is null or undefined)
+  const scheduledVisits = visits.filter(v => v.status === 'active' && (v.start_lat === null || v.start_lat === undefined));
   const completedVisits = visits.filter(v => v.status === 'completed');
 
   const createVisitMutation = useMutation({
@@ -289,10 +289,10 @@ const StaffFieldVisits = () => {
         </Card>
       )}
 
-      {!activeVisit && scheduledVisits.length > 0 && (
+      {scheduledVisits.length > 0 && (
         <div className="space-y-3">
           <h3 className="font-semibold text-gray-700 flex items-center gap-2">
-            <Clock size={16} /> Scheduled Visits
+            <Clock size={16} /> Scheduled Visits ({scheduledVisits.length})
           </h3>
           {scheduledVisits.map(visit => (
             <Card key={visit.id} className="shadow-sm border-gray-100">
@@ -300,17 +300,27 @@ const StaffFieldVisits = () => {
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <p className="font-bold">{visit.lead_name}</p>
-                    <p className="text-xs text-gray-500">{visit.purpose || 'Follow-up Visit'}</p>
+                    <p className="text-xs text-gray-500">{visit.notes || visit.purpose || 'Follow-up Visit'}</p>
+                    {visit.scheduled_date && (
+                      <p className="text-xs text-gray-400 mt-1">
+                        📅 Scheduled: {format(new Date(visit.scheduled_date), 'MMM dd, yyyy hh:mm a')}
+                      </p>
+                    )}
                   </div>
                   <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Scheduled</Badge>
                 </div>
                 <Button 
                   onClick={() => startVisitMutation.mutate(visit.id)}
-                  className="w-full bg-[#C9972A] hover:bg-[#b08221] text-white"
-                  disabled={startVisitMutation.isPending}
+                  className="w-full bg-[#C9972A] hover:bg-[#b08221] text-white disabled:opacity-50"
+                  disabled={startVisitMutation.isPending || !!activeVisit}
                 >
                   <Navigation size={16} className="mr-2" /> Start Visit
                 </Button>
+                {!!activeVisit && (
+                  <p className="text-xs text-amber-600 mt-2 text-center">
+                    Complete your active visit before starting another.
+                  </p>
+                )}
               </CardContent>
             </Card>
           ))}
