@@ -62,6 +62,7 @@ const Followups = () => {
   const [isIssueModalOpen, setIsIssueModalOpen] = useState(false);
   const [issueFollowup, setIssueFollowup] = useState(null);
   const [issueNote, setIssueNote] = useState('');
+  const [isSubmittingIssue, setIsSubmittingIssue] = useState(false);
   const [completionData, setCompletionData] = useState({
     outcome: '',
     scheduleNext: true,
