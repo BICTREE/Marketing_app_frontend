@@ -64,13 +64,40 @@ const Followups = () => {
   const [issueNote, setIssueNote] = useState('');
   const [isSubmittingIssue, setIsSubmittingIssue] = useState(false);
 
-  const [completionData, setCompletionData] = useState({
-    outcome: '',
-    scheduleNext: true,
-    nextDate: '',
-    nextNote: '',
-    nextType: 'call',
-    reason: ''
+  // Edit / Reschedule state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editFollowup, setEditFollowup] = useState(null);
+  const [editDate, setEditDate] = useState('');
+  const [editNote, setEditNote] = useState('');
+  const [editPriority, setEditPriority] = useState('medium');
+
+  // Cancel / Remove state
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancelFollowup, setCancelFollowup] = useState(null);
+  const [cancelReason, setCancelReason] = useState('');
+
+  const editMutation = useMutation({
+    mutationFn: ({ id, scheduled_date, note, priority }) =>
+      api.patch(`/leads/followups/${id}/`, { scheduled_date, note, priority }),
+    onSuccess: () => {
+      toast.success('Follow-up rescheduled! Activity logged to lead profile.');
+      setIsEditModalOpen(false);
+      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries(['customer']);
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || 'Failed to update follow-up.')
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }) =>
+      api.post(`/leads/followups/${id}/cancel/`, { reason }),
+    onSuccess: () => {
+      toast.success('Follow-up cancelled! Logged to lead profile.');
+      setIsCancelModalOpen(false);
+      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries(['customer']);
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || 'Failed to cancel follow-up.')
   });
 
   const handleReportIssueSubmit = async (e) => {
@@ -343,29 +370,57 @@ const Followups = () => {
                 </div>
                 
                 {!followup.completed && followup.status !== 'returned' && (
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     <Button 
-                      className="flex-1 bg-[#0F6E56] hover:bg-[#084d3c]"
+                      className="flex-1 bg-[#0F6E56] hover:bg-[#084d3c] text-white font-bold text-xs h-8"
                       size="sm"
                       onClick={() => {
                         setFollowupToComplete(followup);
                         setIsCompleteModalOpen(true);
                       }}
                     >
-                      <CheckCircle2 size={14} className="mr-1.5" /> Mark Done
+                      <CheckCircle2 size={13} className="mr-1" /> Mark Done
                     </Button>
 
                     <Button 
                       variant="outline"
                       size="sm"
-                      className="border-red-200 text-red-700 hover:bg-red-50 hover:border-red-300 font-semibold"
+                      className="h-8 border-amber-300 text-amber-900 hover:bg-amber-50 font-bold text-xs"
+                      onClick={() => {
+                        setEditFollowup(followup);
+                        setEditDate(followup.scheduled_date ? followup.scheduled_date.slice(0, 16) : '');
+                        setEditNote(followup.note || '');
+                        setEditPriority(followup.priority || 'medium');
+                        setIsEditModalOpen(true);
+                      }}
+                    >
+                      ✏️ Edit
+                    </Button>
+
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      className="h-8 border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs"
+                      onClick={() => {
+                        setCancelFollowup(followup);
+                        setCancelReason('');
+                        setIsCancelModalOpen(true);
+                      }}
+                    >
+                      🗑️ Cancel
+                    </Button>
+
+                    <Button 
+                      variant="outline"
+                      size="sm"
+                      className="border-red-200 text-red-700 hover:bg-red-50 font-bold text-xs h-8"
                       onClick={() => {
                         setIssueFollowup(followup);
                         setIssueNote('');
                         setIsIssueModalOpen(true);
                       }}
                     >
-                      <AlertCircle size={14} className="mr-1.5" /> Return Issue
+                      <AlertCircle size={13} className="mr-1" /> Return Issue
                     </Button>
                   </div>
                 )}
@@ -649,6 +704,134 @@ const Followups = () => {
               >
                 {isSubmittingIssue ? <Loader2 className="animate-spin mr-2" size={16} /> : <AlertCircle className="mr-2" size={16} />}
                 Send Issue & Return Task
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit / Reschedule Follow-up Modal */}
+      <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+        <DialogContent className="sm:max-w-[450px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-amber-900">
+              ✏️ Reschedule &amp; Edit Follow-up
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Reschedule follow-up for <strong className="text-foreground">{editFollowup?.lead_name}</strong>. Rescheduling creates a log entry on the Lead Profile timeline.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!editFollowup) return;
+              editMutation.mutate({
+                id: editFollowup.id,
+                scheduled_date: editDate,
+                note: editNote,
+                priority: editPriority
+              });
+            }} 
+            className="space-y-4 pt-2"
+          >
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 uppercase">Scheduled Date &amp; Time *</label>
+              <input
+                type="datetime-local"
+                required
+                className="w-full p-2.5 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white text-sm outline-none font-medium"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 uppercase">Priority</label>
+              <select
+                className="w-full p-2.5 rounded-xl border border-gray-300 bg-gray-50 text-sm font-semibold outline-none"
+                value={editPriority}
+                onChange={(e) => setEditPriority(e.target.value)}
+              >
+                <option value="low">Low Priority</option>
+                <option value="medium">Medium Priority</option>
+                <option value="high">High Priority</option>
+                <option value="urgent">Urgent Priority</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 uppercase">Updated Note / Reason *</label>
+              <textarea
+                rows={3}
+                required
+                placeholder="Why is this follow-up being rescheduled? e.g. Customer requested call next Tuesday."
+                className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white text-sm outline-none"
+                value={editNote}
+                onChange={(e) => setEditNote(e.target.value)}
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="ghost" onClick={() => setIsEditModalOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={editMutation.isPending || !editDate || !editNote.trim()}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold"
+              >
+                {editMutation.isPending ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+                Save &amp; Log Reschedule
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove / Cancel Follow-up Modal */}
+      <Dialog open={isCancelModalOpen} onOpenChange={setIsCancelModalOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-rose-700">
+              🗑️ Cancel / Remove Follow-up Task
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Cancelling this task for <strong className="text-foreground">{cancelFollowup?.lead_name}</strong> will remove it from pending queues while logging the cancellation on the Lead Profile history.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!cancelFollowup) return;
+              cancelMutation.mutate({ id: cancelFollowup.id, reason: cancelReason });
+            }} 
+            className="space-y-4 pt-2"
+          >
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-700 uppercase">Reason for Cancellation *</label>
+              <textarea
+                rows={3}
+                required
+                placeholder="e.g. Lead purchased elsewhere, duplicate follow-up task, customer not interested..."
+                className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white text-sm outline-none"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+              />
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button type="button" variant="ghost" onClick={() => setIsCancelModalOpen(false)}>
+                Go Back
+              </Button>
+              <Button
+                type="submit"
+                disabled={cancelMutation.isPending || !cancelReason.trim()}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-bold"
+              >
+                {cancelMutation.isPending ? <Loader2 className="animate-spin mr-2" size={16} /> : null}
+                Confirm &amp; Log Cancellation
               </Button>
             </DialogFooter>
           </form>
