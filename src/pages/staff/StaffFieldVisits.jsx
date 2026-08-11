@@ -60,7 +60,18 @@ const StaffFieldVisits = () => {
   const activeVisit = visits.find(v => v.status === 'active' && v.start_lat !== null && v.start_lat !== undefined);
   // A visit is scheduled/assigned if status is 'active' AND (start_lat is null or undefined)
   const scheduledVisits = visits.filter(v => v.status === 'active' && (v.start_lat === null || v.start_lat === undefined));
-  const completedVisits = visits.filter(v => v.status === 'completed');
+  const completedVisits = visits.filter(v => {
+    if (v.status !== 'completed') return false;
+    const dateToCheck = v.ended_at || v.started_at;
+    if (!dateToCheck) return false;
+    const visitDate = new Date(dateToCheck);
+    const today = new Date();
+    return (
+      visitDate.getDate() === today.getDate() &&
+      visitDate.getMonth() === today.getMonth() &&
+      visitDate.getFullYear() === today.getFullYear()
+    );
+  });
 
   const createVisitMutation = useMutation({
     mutationFn: (newVisit) => api.post('/field-visits/field-visits/', newVisit),
