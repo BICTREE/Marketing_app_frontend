@@ -81,6 +81,13 @@ const NotificationsPage = () => {
     }
   });
 
+  const reviewVisitId = selectedReviewNotif?.data?.visit_id;
+  const { data: fullVisitDetails, isLoading: isVisitLoading } = useQuery({
+    queryKey: ['review-visit-details', reviewVisitId],
+    queryFn: () => api.get(`/field-visits/field-visits/${reviewVisitId}/`).then(res => res.data),
+    enabled: !!reviewVisitId
+  });
+
   const managerDecisionMutation = useMutation({
     mutationFn: ({ leadId, decision, extraPayload }) => 
       api.post(`/leads/leads/${leadId}/manager-decision/`, {
@@ -396,13 +403,50 @@ const NotificationsPage = () => {
 
           {selectedReviewNotif && (
             <div className="space-y-4 pt-2">
-              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 space-y-1.5 text-xs text-amber-900">
-                <p className="font-bold text-sm text-amber-950">{selectedReviewNotif.title}</p>
-                <p className="leading-relaxed">{selectedReviewNotif.body}</p>
-                {selectedReviewNotif.data?.expected_grams && (
-                  <p className="font-semibold text-amber-800 pt-1">
-                    🏅 Gold Intention: {selectedReviewNotif.data.expected_grams} Grams
-                  </p>
+              <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3.5 space-y-2 text-xs text-amber-950 shadow-sm">
+                <div className="flex justify-between items-start border-b border-amber-200/60 pb-2">
+                  <div>
+                    <p className="font-bold text-sm text-amber-950">{selectedReviewNotif.title}</p>
+                    <p className="text-amber-800 text-[11px] mt-0.5">{selectedReviewNotif.body}</p>
+                  </div>
+                  {fullVisitDetails?.report?.outcome_display && (
+                    <span className="bg-amber-200/60 text-amber-900 font-bold px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
+                      {fullVisitDetails.report.outcome_display}
+                    </span>
+                  )}
+                </div>
+
+                {isVisitLoading ? (
+                  <div className="flex items-center gap-2 py-2 text-amber-800">
+                    <Loader2 className="animate-spin" size={14} /> Loading detailed visit report from staff...
+                  </div>
+                ) : (
+                  <div className="space-y-2 pt-1">
+                    {/* Staff Submitted Notes */}
+                    <div className="bg-white/90 border border-amber-200 rounded-lg p-2.5 space-y-1">
+                      <p className="font-bold text-[11px] text-amber-900 flex items-center gap-1.5">
+                        ✍️ Staff Submitted Report & Notes:
+                      </p>
+                      <p className="text-xs text-gray-800 font-medium whitespace-pre-wrap leading-relaxed">
+                        {fullVisitDetails?.report?.notes || fullVisitDetails?.notes || selectedReviewNotif.data?.report_notes || 'No notes provided by staff.'}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 text-amber-900 font-medium">
+                      {fullVisitDetails?.staff_name && (
+                        <div>👤 Field Staff: <span className="font-bold">{fullVisitDetails.staff_name}</span></div>
+                      )}
+                      {fullVisitDetails?.lead_name && (
+                        <div>📞 Lead/Client: <span className="font-bold">{fullVisitDetails.lead_name}</span></div>
+                      )}
+                      {(fullVisitDetails?.lead_lat || selectedReviewNotif.data?.expected_grams) && (
+                        <div>🏅 Gold Intention: <span className="font-bold">{selectedReviewNotif.data?.expected_grams || 'Specified'} Grams</span></div>
+                      )}
+                      {fullVisitDetails?.duration_minutes && (
+                        <div>⏱️ Duration: <span className="font-bold">{fullVisitDetails.duration_minutes} mins</span></div>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
