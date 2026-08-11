@@ -54,6 +54,8 @@ const NotificationsPage = () => {
     image: null
   });
   const [previewImage, setPreviewImage] = useState(null);
+  const [selectedReviewNotif, setSelectedReviewNotif] = useState(null);
+  const [managerNotes, setManagerNotes] = useState('');
 
   const { data: notificationsData, isLoading } = useQuery({
     queryKey: ['notifications'],
@@ -76,6 +78,25 @@ const NotificationsPage = () => {
     onSuccess: () => {
       toast.success('All notifications marked as read');
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    }
+  });
+
+  const managerDecisionMutation = useMutation({
+    mutationFn: ({ leadId, decision, extraPayload }) => 
+      api.post(`/leads/leads/${leadId}/manager-decision/`, {
+        decision,
+        notes: managerNotes,
+        ...extraPayload
+      }),
+    onSuccess: (res) => {
+      toast.success(res.data?.detail || 'Manager decision recorded successfully!');
+      setSelectedReviewNotif(null);
+      setManagerNotes('');
+      queryClient.invalidateQueries(['notifications']);
+      queryClient.invalidateQueries(['leads']);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to record decision.');
     }
   });
 
@@ -289,7 +310,13 @@ const NotificationsPage = () => {
               {notificationsData.map(notif => (
                 <div 
                   key={notif.id} 
-                  className={`p-4 flex gap-4 transition-colors ${notif.is_read ? 'opacity-70 bg-background' : 'bg-primary/5 hover:bg-primary/10'}`}
+                  onClick={() => {
+                    if (!notif.is_read) markReadMutation.mutate(notif.id);
+                    if (notif.data?.type === 'field_visit_outcome' || notif.data?.type === 'field_visit_report') {
+                      setSelectedReviewNotif(notif);
+                    }
+                  }}
+                  className={`p-4 flex gap-4 transition-colors cursor-pointer ${notif.is_read ? 'opacity-70 bg-background' : 'bg-primary/5 hover:bg-primary/10'}`}
                 >
                   <div className="mt-1 flex-shrink-0">
                     <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center border border-border shadow-sm">
@@ -316,7 +343,10 @@ const NotificationsPage = () => {
                       
                       {!notif.is_read && (
                         <button 
-                          onClick={() => markReadMutation.mutate(notif.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markReadMutation.mutate(notif.id);
+                          }}
                           disabled={markReadMutation.isPending}
                           className="p-1.5 text-muted-foreground hover:text-primary transition-colors rounded-full hover:bg-background shadow-sm border border-border/50"
                           title="Mark as read"
@@ -354,6 +384,95 @@ const NotificationsPage = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Manager Decision Review Modal */}
+      <Dialog open={!!selectedReviewNotif} onOpenChange={(open) => !open && setSelectedReviewNotif(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-900">
+              👑 Manager Field Visit Review & Decision
+            </DialogTitle>
+          </DialogHeader>
+
+          {selectedReviewNotif && (
+            <div className="space-y-4 pt-2">
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 space-y-1.5 text-xs text-amber-900">
+                <p className="font-bold text-sm text-amber-950">{selectedReviewNotif.title}</p>
+                <p className="leading-relaxed">{selectedReviewNotif.body}</p>
+                {selectedReviewNotif.data?.expected_grams && (
+                  <p className="font-semibold text-amber-800 pt-1">
+                    🏅 Gold Intention: {selectedReviewNotif.data.expected_grams} Grams
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-gray-700">Manager Review Notes & Feedback</label>
+                <textarea
+                  className="w-full p-2 text-xs rounded-md border border-input bg-background min-h-[70px]"
+                  placeholder="e.g. Approved for advance scheme discount. Schedule follow-up visit..."
+                  value={managerNotes}
+                  onChange={(e) => setManagerNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button 
+                  size="sm" 
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs"
+                  onClick={() => managerDecisionMutation.mutate({ 
+                    leadId: selectedReviewNotif.data.lead_id, 
+                    decision: 'convert' 
+                  })}
+                  disabled={managerDecisionMutation.isPending}
+                >
+                  ✓ Mark Converted
+                </Button>
+
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="border-rose-300 text-rose-700 hover:bg-rose-50 font-medium text-xs"
+                  onClick={() => managerDecisionMutation.mutate({ 
+                    leadId: selectedReviewNotif.data.lead_id, 
+                    decision: 'mark_lost',
+                    extraPayload: { lost_reason: managerNotes } 
+                  })}
+                  disabled={managerDecisionMutation.isPending}
+                >
+                  ✕ Mark Lost
+                </Button>
+
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="border-amber-300 text-amber-800 hover:bg-amber-50 font-medium text-xs"
+                  onClick={() => managerDecisionMutation.mutate({ 
+                    leadId: selectedReviewNotif.data.lead_id, 
+                    decision: 'schedule_visit' 
+                  })}
+                  disabled={managerDecisionMutation.isPending}
+                >
+                  📅 Schedule Next Visit
+                </Button>
+
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  className="border-amber-300 text-amber-800 hover:bg-amber-50 font-medium text-xs"
+                  onClick={() => managerDecisionMutation.mutate({ 
+                    leadId: selectedReviewNotif.data.lead_id, 
+                    decision: 'schedule_followup' 
+                  })}
+                  disabled={managerDecisionMutation.isPending}
+                >
+                  📞 Schedule Call
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
