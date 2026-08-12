@@ -29,15 +29,33 @@ L.Marker.prototype.options.icon = DefaultIcon;
 
 const FitMapToBounds = ({ data }) => {
   const map = useMap();
+  const hasFitted = useRef(false);
+  const userInteracted = useRef(false);
+
   useEffect(() => {
-    if (data && data.length > 0) {
-      const markers = data.filter(d => d.check_in_lat && d.check_in_lng);
+    const handleInteraction = () => {
+      userInteracted.current = true;
+    };
+    map.on('zoomstart dragstart', handleInteraction);
+    return () => {
+      map.off('zoomstart dragstart', handleInteraction);
+    };
+  }, [map]);
+
+  useEffect(() => {
+    if (!userInteracted.current && !hasFitted.current && data && data.length > 0) {
+      const markers = data.filter(d => (d.last_location_lat || d.check_in_lat) && (d.last_location_lng || d.check_in_lng));
       if (markers.length > 0) {
-        const bounds = L.latLngBounds(markers.map(m => [m.check_in_lat, m.check_in_lng]));
+        const bounds = L.latLngBounds(markers.map(m => [
+          m.last_location_lat || m.check_in_lat, 
+          m.last_location_lng || m.check_in_lng
+        ]));
         map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
+        hasFitted.current = true;
       }
     }
   }, [data, map]);
+
   return null;
 };
 
@@ -655,20 +673,41 @@ const AttendancePage = () => {
                   </Circle>
                 ))}
 
-                {filteredAttendance.filter(record => record.check_in_lat && record.check_in_lng).map(record => (
-                  <Marker 
-                    key={record.id} 
-                    position={[record.check_in_lat, record.check_in_lng]}
-                  >
-                    <Popup>
-                      <div className="text-sm">
-                        <p className="font-bold border-b pb-1 mb-1">{record.user_name}</p>
-                        <p className="flex items-center gap-1 text-xs"><Clock size={12} /> {format(new Date(record.check_in_time), 'hh:mm a')}</p>
-                        <p className="text-xs mt-1 capitalize font-medium text-primary">{record.status?.replace('_', ' ') || 'Present'}</p>
-                      </div>
-                    </Popup>
-                  </Marker>
-                ))}
+                {filteredAttendance.filter(record => (record.last_location_lat || record.check_in_lat) && (record.last_location_lng || record.check_in_lng)).map(record => {
+                  const lat = parseFloat(record.last_location_lat || record.check_in_lat);
+                  const lng = parseFloat(record.last_location_lng || record.check_in_lng);
+                  const isGpsOff = record.is_gps_enabled === false;
+                  const isOffline = record.is_online === false;
+
+                  return (
+                    <Marker 
+                      key={record.id} 
+                      position={[lat, lng]}
+                    >
+                      <Popup>
+                        <div className="text-sm p-1">
+                          <p className="font-bold border-b pb-1 mb-1">{record.user_name}</p>
+                          <p className="flex items-center gap-1 text-xs text-muted-foreground"><Clock size={12} /> {format(new Date(record.check_in_time), 'hh:mm a')}</p>
+                          <div className="mt-2">
+                            {isGpsOff ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-700 border border-red-200">
+                                ⚠️ GPS Turned OFF / Disabled
+                              </span>
+                            ) : isOffline ? (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                ⚪ Offline / Signal Lost
+                              </span>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                🟢 Live GPS Active (Online)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  );
+                })}
               </MapContainer>
             </div>
           </CardContent>
