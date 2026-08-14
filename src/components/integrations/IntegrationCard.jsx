@@ -64,7 +64,11 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
   const { data: latestPosts, isLoading: postsLoading } = useQuery({
     queryKey: ['integration-posts', integration.id],
     queryFn: () => api.get(`/campaigns/integrations/${integration.id}/latest-posts/`).then(res => res.data),
-    enabled: integration.is_connected && (integration.platform === 'facebook_ads' || integration.platform === 'instagram_insights') && isExpanded,
+    enabled: integration.is_connected && (
+      integration.platform === 'facebook_ads' || 
+      integration.platform === 'instagram_insights' ||
+      integration.platform === 'youtube_analytics'
+    ) && isExpanded,
   });
 
   const disconnectMutation = useMutation({
@@ -178,53 +182,88 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
         </div>
       )}
 
-      {/* Analytics Grid */}
+      {/* Platform-Specific Analytics Grid */}
       {integration.is_connected && (
         <div className="px-5 pb-5 grid grid-cols-2 gap-3 relative">
-          <Metric label="Impressions" value={analytics?.impressions || 0} icon={<Eye />} colorClass={config.color} />
-          <Metric label="Engagement" value={analytics?.engagement || 0} icon={<Target />} colorClass={config.color} />
-          <Metric label="Spend" value={`₹${analytics?.spend || 0}`} icon={<CreditCard />} colorClass={config.color} />
-          <Metric label="Growth" value={analytics?.conversions || 0} icon={<TrendingUp />} colorClass={config.color} />
+          {integration.platform === 'youtube_analytics' ? (
+            <>
+              <Metric label="Video Views" value={analytics?.video_views || analytics?.impressions || 0} icon={<Eye />} colorClass="text-[#FF0000]" />
+              <Metric label="Engagement / Likes" value={analytics?.engagement || 0} icon={<Target />} colorClass="text-[#FF0000]" />
+              <Metric label="Subscribers" value={analytics?.conversions || analytics?.reach || 0} icon={<Users />} colorClass="text-[#FF0000]" />
+              <Metric label="Channel Videos" value={analytics?.video_count || analytics?.clicks || 0} icon={<TrendingUp />} colorClass="text-[#FF0000]" />
+            </>
+          ) : integration.platform === 'google_analytics' ? (
+            <>
+              <Metric label="Active Visitors" value={analytics?.reach || analytics?.clicks || 0} icon={<Users />} colorClass="text-[#34A853]" />
+              <Metric label="Total Pageviews" value={analytics?.impressions || 0} icon={<Eye />} colorClass="text-[#34A853]" />
+              <Metric label="Engagements" value={analytics?.engagement || 0} icon={<Target />} colorClass="text-[#34A853]" />
+              <Metric label="Conversions" value={analytics?.conversions || 0} icon={<TrendingUp />} colorClass="text-[#34A853]" />
+            </>
+          ) : integration.platform === 'google_ads' ? (
+            <>
+              <Metric label="Ad Impressions" value={analytics?.impressions || 0} icon={<Eye />} colorClass="text-[#4285F4]" />
+              <Metric label="Ad Clicks" value={analytics?.clicks || 0} icon={<MousePointer2 />} colorClass="text-[#4285F4]" />
+              <Metric label="Ad Spend" value={`₹${analytics?.spend || 0}`} icon={<CreditCard />} colorClass="text-[#4285F4]" />
+              <Metric label="Leads Generated" value={analytics?.conversions || analytics?.leads || 0} icon={<Target />} colorClass="text-[#4285F4]" />
+            </>
+          ) : (
+            <>
+              <Metric label="Total Reach" value={analytics?.reach || analytics?.impressions || 0} icon={<Eye />} colorClass={config.color} />
+              <Metric label="Engagement" value={analytics?.engagement || 0} icon={<Target />} colorClass={config.color} />
+              <Metric label="Ad Spend" value={`₹${analytics?.spend || 0}`} icon={<CreditCard />} colorClass={config.color} />
+              <Metric label="Leads" value={analytics?.conversions || analytics?.leads || 0} icon={<TrendingUp />} colorClass={config.color} />
+            </>
+          )}
         </div>
       )}
 
-      {/* Latest Posts Feed (Facebook / Instagram) */}
+      {/* Detailed Feed / Video List */}
       {integration.is_connected && isExpanded && (
         <div className="px-5 pb-5 border-t border-gray-100/80 pt-4 space-y-3">
           <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center justify-between">
-            <span>Latest Feed / Posts</span>
+            <span>{integration.platform === 'youtube_analytics' ? '🎬 Recent Videos Analytics' : 'Latest Feed / Posts'}</span>
             {postsLoading && <Loader2 size={12} className="animate-spin text-gray-400" />}
           </h4>
           
           {latestPosts && latestPosts.length > 0 ? (
-            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
-              {latestPosts.map((post) => (
-                <div key={post.id} className="bg-gray-50/50 hover:bg-gray-50 p-3 rounded-xl border border-gray-100 transition-all flex gap-3">
-                  {post.media_url && (
+            <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
+              {latestPosts.map((item) => (
+                <div key={item.id} className="bg-gray-50/50 hover:bg-gray-50 p-3 rounded-xl border border-gray-100 transition-all flex gap-3">
+                  {item.media_url && (
                     <img 
-                      src={post.media_url} 
-                      alt="Post" 
-                      className="w-12 h-12 object-cover rounded-lg border border-gray-200/50 flex-shrink-0" 
+                      src={item.media_url} 
+                      alt="Thumbnail" 
+                      className="w-16 h-12 object-cover rounded-lg border border-gray-200/50 flex-shrink-0" 
                     />
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-gray-700 font-medium line-clamp-2 leading-relaxed">
-                      {post.caption}
+                    <p className="text-xs font-bold text-gray-800 line-clamp-1 leading-snug">
+                      {item.title || item.caption}
                     </p>
-                    <div className="flex items-center gap-3 mt-1.5 text-[10px] font-bold text-gray-400">
-                      <span className="flex items-center gap-1">
-                        ❤️ {post.likes} Likes
+                    {item.title && (
+                      <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5">
+                        {item.caption}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-3 mt-1.5 text-[10px] font-bold text-gray-500">
+                      {item.views !== undefined && (
+                        <span className="flex items-center gap-1 text-red-600">
+                          👁️ {item.views.toLocaleString()} Views
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1 text-pink-600">
+                        ❤️ {item.likes.toLocaleString()} Likes
                       </span>
-                      <span className="flex items-center gap-1">
-                        💬 {post.comments} Comments
+                      <span className="flex items-center gap-1 text-blue-600">
+                        💬 {item.comments.toLocaleString()} Comments
                       </span>
-                      {post.shares !== undefined && (
-                        <span className="flex items-center gap-1">
-                          🔄 {post.shares} Shares
+                      {item.watch_hours !== undefined && (
+                        <span className="flex items-center gap-1 text-purple-600">
+                          ⏱️ {item.watch_hours} Watch Hours
                         </span>
                       )}
                       <span className="ml-auto text-gray-400">
-                        {new Date(post.created_time).toLocaleDateString()}
+                        {new Date(item.created_time).toLocaleDateString()}
                       </span>
                     </div>
                   </div>
@@ -232,7 +271,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
               ))}
             </div>
           ) : !postsLoading ? (
-            <p className="text-xs text-gray-400 text-center py-4">No recent posts found.</p>
+            <p className="text-xs text-gray-400 text-center py-4">No recent content found.</p>
           ) : null}
         </div>
       )}
