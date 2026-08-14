@@ -129,7 +129,10 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
   };
 
   return (
-    <div className={`group relative bg-white border ${config.border} rounded-2xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1`}>
+    <div 
+      onClick={() => integration.is_connected && setIsExpanded(!isExpanded)}
+      className={`group relative bg-white border ${config.border} rounded-2xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${integration.is_connected ? 'cursor-pointer' : ''}`}
+    >
       <div className={`absolute top-0 right-0 w-32 h-32 ${config.bg} rounded-full -mr-16 -mt-16 blur-3xl opacity-50 group-hover:opacity-100 transition-opacity`} />
       
       {/* Header */}
@@ -187,24 +190,24 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
         <div className="px-5 pb-5 grid grid-cols-2 gap-3 relative">
           {integration.platform === 'youtube_analytics' ? (
             <>
-              <Metric label="Video Views" value={analytics?.video_views || analytics?.impressions || 70000} icon={<Eye />} colorClass="text-[#FF0000]" />
-              <Metric label="Engagement / Likes" value={analytics?.engagement || analytics?.likes || 3450} icon={<Target />} colorClass="text-[#FF0000]" />
-              <Metric label="Subscribers" value={analytics?.subscribers || analytics?.conversions || 84} icon={<Users />} colorClass="text-[#FF0000]" />
-              <Metric label="Channel Videos" value={analytics?.video_count || 42} icon={<TrendingUp />} colorClass="text-[#FF0000]" />
+              <Metric label="Video Views" value={analytics?.video_views ?? analytics?.impressions ?? 0} icon={<Eye />} colorClass="text-[#FF0000]" />
+              <Metric label="Engagement / Likes" value={analytics?.engagement ?? analytics?.likes ?? 0} icon={<Target />} colorClass="text-[#FF0000]" />
+              <Metric label="Subscribers" value={analytics?.subscribers ?? analytics?.conversions ?? 0} icon={<Users />} colorClass="text-[#FF0000]" />
+              <Metric label="Channel Videos" value={analytics?.video_count ?? 0} icon={<TrendingUp />} colorClass="text-[#FF0000]" />
             </>
           ) : integration.platform === 'google_analytics' ? (
             <>
-              <Metric label="Active Visitors" value={analytics?.reach || analytics?.clicks || 2800} icon={<Users />} colorClass="text-[#34A853]" />
-              <Metric label="Total Pageviews" value={analytics?.impressions || 10850} icon={<Eye />} colorClass="text-[#34A853]" />
-              <Metric label="Engagements" value={analytics?.engagement || 4210} icon={<Target />} colorClass="text-[#34A853]" />
-              <Metric label="Conversions" value={analytics?.conversions || 105} icon={<TrendingUp />} colorClass="text-[#34A853]" />
+              <Metric label="Active Visitors" value={analytics?.reach ?? analytics?.clicks ?? 0} icon={<Users />} colorClass="text-[#34A853]" />
+              <Metric label="Total Pageviews" value={analytics?.impressions ?? 0} icon={<Eye />} colorClass="text-[#34A853]" />
+              <Metric label="Engagements" value={analytics?.engagement ?? 0} icon={<Target />} colorClass="text-[#34A853]" />
+              <Metric label="Conversions" value={analytics?.conversions ?? 0} icon={<TrendingUp />} colorClass="text-[#34A853]" />
             </>
           ) : integration.platform === 'google_ads' ? (
             <>
-              <Metric label="Ad Impressions" value={analytics?.impressions || 37800} icon={<Eye />} colorClass="text-[#4285F4]" />
-              <Metric label="Ad Clicks" value={analytics?.clicks || 2345} icon={<MousePointer2 />} colorClass="text-[#4285F4]" />
-              <Metric label="Ad Spend" value={`₹${analytics?.spend || 3150}`} icon={<CreditCard />} colorClass="text-[#4285F4]" />
-              <Metric label="Leads Generated" value={analytics?.conversions || analytics?.leads || 22} icon={<Target />} colorClass="text-[#4285F4]" />
+              <Metric label="Ad Impressions" value={analytics?.impressions ?? 0} icon={<Eye />} colorClass="text-[#4285F4]" />
+              <Metric label="Ad Clicks" value={analytics?.clicks ?? 0} icon={<MousePointer2 />} colorClass="text-[#4285F4]" />
+              <Metric label="Ad Spend" value={`₹${analytics?.spend ?? 0}`} icon={<CreditCard />} colorClass="text-[#4285F4]" />
+              <Metric label="Leads Generated" value={analytics?.conversions ?? analytics?.leads ?? 0} icon={<Target />} colorClass="text-[#4285F4]" />
             </>
           ) : (
             <>
@@ -291,17 +294,15 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 {syncMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} className="mr-1.5" />}
                 Sync
               </Button>
-              {(integration.platform === 'facebook_ads' || integration.platform === 'instagram_insights') && (
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="rounded-xl h-9 px-3 text-gray-500 hover:bg-gray-100 font-semibold text-xs gap-1"
-                >
-                  {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                  {isExpanded ? 'Hide Feed' : 'Show Feed'}
-                </Button>
-              )}
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+                className="rounded-xl h-9 px-3 text-gray-600 hover:bg-gray-100 font-bold text-xs gap-1 border border-gray-200"
+              >
+                {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                {isExpanded ? 'Hide Details' : 'View Full Details →'}
+              </Button>
               <Button 
                 size="sm" 
                 variant="ghost" 
