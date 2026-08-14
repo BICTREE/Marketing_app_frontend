@@ -188,7 +188,16 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
       {/* Platform-Specific Analytics Grid */}
       {integration.is_connected && (
         <div className="px-5 pb-5 grid grid-cols-2 gap-3 relative">
-          {integration.platform === 'youtube_analytics' ? (
+          {analyticsLoading ? (
+            <>
+              <div className="bg-gray-100 animate-pulse h-16 rounded-xl border border-gray-200/60 flex items-center justify-center text-xs text-gray-400 font-semibold gap-2">
+                <Loader2 size={14} className="animate-spin text-gray-500" /> Fetching live metrics...
+              </div>
+              <div className="bg-gray-100 animate-pulse h-16 rounded-xl border border-gray-200/60" />
+              <div className="bg-gray-100 animate-pulse h-16 rounded-xl border border-gray-200/60" />
+              <div className="bg-gray-100 animate-pulse h-16 rounded-xl border border-gray-200/60" />
+            </>
+          ) : integration.platform === 'youtube_analytics' ? (
             <>
               <Metric label="Video Views" value={analytics?.video_views ?? analytics?.impressions ?? 0} icon={<Eye />} colorClass="text-[#FF0000]" />
               <Metric label="Engagement / Likes" value={analytics?.engagement ?? analytics?.likes ?? 0} icon={<Target />} colorClass="text-[#FF0000]" />
