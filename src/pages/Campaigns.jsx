@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
@@ -45,6 +45,7 @@ const CampaignsPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [activeTab, setActiveTab] = useState('all');
   // Multi-branch selection for campaign creation form
   const [formSelectedBranches, setFormSelectedBranches] = useState([]);
@@ -60,12 +61,20 @@ const CampaignsPage = () => {
     })
   });
 
-  // Fetch Campaigns (server-side branch filter)
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Fetch Campaigns (server-side branch + search)
   const { data: campaignsData, isLoading } = useQuery({
-    queryKey: ['campaigns', selectedBranch],
+    queryKey: ['campaigns', selectedBranch, debouncedSearch],
     queryFn: () => {
-      const params = selectedBranch !== 'all' ? `?branch=${selectedBranch}` : '';
-      return api.get(`/campaigns/campaigns/${params}`).then(res => {
+      const params = {};
+      if (selectedBranch !== 'all') params.branch = selectedBranch;
+      if (debouncedSearch) params.search = debouncedSearch;
+      params.page_size = 500;
+      return api.get('/campaigns/campaigns/', { params }).then(res => {
         const data = res.data.results || res.data;
         return Array.isArray(data) ? data : [];
       });
@@ -76,16 +85,12 @@ const CampaignsPage = () => {
   const filteredCampaigns = useMemo(() => {
     let data = campaignsData || [];
     
-    if (searchQuery) {
-      data = data.filter(c => c.name.toLowerCase().includes(searchQuery.toLowerCase()));
-    }
-    
     if (activeTab !== 'all') {
       data = data.filter(c => c.channel_type === activeTab);
     }
     
     return data;
-  }, [campaignsData, searchQuery, activeTab]);
+  }, [campaignsData, activeTab]);
 
   // Chart data
   const campaignStatusData = useMemo(() => {
@@ -152,7 +157,7 @@ const CampaignsPage = () => {
       try {
         await api.post('/campaigns/campaigns/', {
           ...campaignFields,
-          branch: branchId,
+          branch: parseInt(branchId, 10),
         });
         successCount++;
       } catch (err) {

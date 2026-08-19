@@ -35,13 +35,15 @@ const IntegrationsCallback = () => {
       try {
         const redirectUri = window.location.origin + '/campaigns/integrations/callback';
         const branchId = localStorage.getItem('oauth_branch_id');
-        localStorage.removeItem('oauth_branch_id'); // Clean up
+        const platform = localStorage.getItem('oauth_platform') || 'google_analytics';
+        localStorage.removeItem('oauth_branch_id');
+        localStorage.removeItem('oauth_platform');
         
-        // Exchange code in the backend
         await api.post('/campaigns/integrations/google-callback/', {
           code,
           redirect_uri: redirectUri,
-          branch: branchId
+          branch: branchId,
+          platform,
         }, { _skipInterceptor: true });
 
         setStatus('success');

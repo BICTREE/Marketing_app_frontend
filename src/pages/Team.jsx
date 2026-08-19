@@ -80,6 +80,7 @@ const TeamPage = () => {
   const { user, isOwner, isManager } = useAuth();
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -105,12 +106,20 @@ const TeamPage = () => {
     })
   });
 
-  // Fetch Team (server-side branch filter)
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
+  // Fetch Team (server-side branch + search)
   const { data: teamData, isLoading } = useQuery({
-    queryKey: ['team', selectedBranch],
+    queryKey: ['team', selectedBranch, debouncedSearch],
     queryFn: () => {
-      const params = selectedBranch !== 'all' ? `?branch=${selectedBranch}` : '';
-      return api.get(`/accounts/users/${params}`).then(res => {
+      const params = {};
+      if (selectedBranch !== 'all') params.branch = selectedBranch;
+      if (debouncedSearch) params.search = debouncedSearch;
+      params.page_size = 500;
+      return api.get('/accounts/users/', { params }).then(res => {
         const data = res.data.results || res.data;
         return Array.isArray(data) ? data : [];
       });
@@ -195,16 +204,7 @@ const TeamPage = () => {
     queryFn: () => api.get('/sales/sales/').then(res => res.data.results || res.data)
   });
 
-  // Client-side search filtering
-  const filteredTeam = React.useMemo(() => {
-    if (!teamData) return [];
-    return teamData.filter(m => 
-      m.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.phone?.includes(searchQuery) ||
-      m.employee_id?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [teamData, searchQuery]);
+  const filteredTeam = teamData || [];
 
   const currentUser = React.useMemo(() => {
     if (!selectedUser) return null;
@@ -393,7 +393,11 @@ const TeamPage = () => {
       toast.success('Staff created successfully');
     },
     onError: (err) => {
-      toast.error(err.response?.data?.detail || 'Failed to create staff');
+      const data = err.response?.data;
+      const first = data && typeof data === 'object'
+        ? Object.values(data).flat()?.[0]
+        : null;
+      toast.error(first || data?.detail || 'Failed to create staff');
     }
   });
 
@@ -480,9 +484,14 @@ const TeamPage = () => {
   };
 
   const onPermissionsSubmit = (data) => {
-    if (permissionsData?.id) {
-      permissionsMutation.mutate({ id: permissionsData.id, formData: data });
-    }
+    if (!permissionsData?.id) return;
+    const flags = {};
+    PERMISSION_GROUPS.forEach(group => {
+      group.fields.forEach(field => {
+        flags[field] = !!data[field];
+      });
+    });
+    permissionsMutation.mutate({ id: permissionsData.id, formData: flags });
   };
 
   const onTaskSubmit = (data) => {
@@ -492,9 +501,9 @@ const TeamPage = () => {
   const onEditSubmit = (data) => {
     const formData = new FormData();
     Object.keys(data).forEach(key => {
-      if (data[key]) {
-        formData.append(key, data[key]);
-      }
+      const value = data[key];
+      if (value === null || value === undefined) return;
+      formData.append(key, value);
     });
     
     if (avatarFile) {

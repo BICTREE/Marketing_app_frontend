@@ -55,12 +55,16 @@ const ConnectionModal = ({ platform, isOpen, onClose, onSuccess }) => {
   });
 
   const onSubmit = (data) => {
-    connectMutation.mutate({
+    const payload = {
       platform: platform,
       is_connected: true,
       sync_enabled: true,
       ...data,
-    });
+    };
+    if (!payload.branch || payload.branch === 'global') {
+      payload.branch = null;
+    }
+    connectMutation.mutate(payload);
   };
 
   const getPlatformName = (platformKey) => {
@@ -113,7 +117,7 @@ const ConnectionModal = ({ platform, isOpen, onClose, onSuccess }) => {
 
         {step === 'form' && (
           <div className="space-y-6 pt-4">
-            {platform === 'google_analytics' && (
+            {(platform === 'google_analytics' || platform === 'google_ads' || platform === 'youtube_analytics') && (
               <div className="space-y-4">
                 <div className="bg-muted/30 p-4 rounded-lg border border-dashed text-center">
                   <p className="text-sm text-muted-foreground mb-4">
@@ -132,6 +136,7 @@ const ConnectionModal = ({ platform, isOpen, onClose, onSuccess }) => {
                         } else {
                           localStorage.removeItem('oauth_branch_id');
                         }
+                        localStorage.setItem('oauth_platform', platform);
 
                         const redirectUri = window.location.origin + '/campaigns/integrations/callback';
                         const res = await api.get('/campaigns/integrations/oauth-url/', {
@@ -182,7 +187,7 @@ const ConnectionModal = ({ platform, isOpen, onClose, onSuccess }) => {
                         const selectedBranch = getValues('branch');
                         console.log('Selected branch for Meta:', selectedBranch);
                         const res = await api.get('/campaigns/integrations/meta/oauth-url/', {
-                          params: { branch_id: selectedBranch }
+                          params: { branch_id: selectedBranch === 'global' ? '' : selectedBranch, platform }
                         });
                         console.log('Meta OAuth URL:', res.data.url);
                         window.location.href = res.data.url;
