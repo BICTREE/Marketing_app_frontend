@@ -35,6 +35,42 @@ const safeFormat = (dateStr, formatStr, fallback = '—') => {
   }
 };
 
+// Mirrors field_visits/liveness.py so the map and the API never disagree about
+// who is online. A marker is only green when a fix actually arrived recently.
+const LIVE_MAX_AGE_SECONDS = 90;
+const DELAYED_MAX_AGE_SECONDS = 300;
+
+const GPS_STATUS_STYLES = {
+  live:    { color: '#10B981', label: '🟢 Live',    ring: 'rgba(16,185,129,0.35)' },
+  delayed: { color: '#F59E0B', label: '🟡 Delayed', ring: 'rgba(245,158,11,0.35)' },
+  offline: { color: '#6B7280', label: '🔴 Offline', ring: 'rgba(107,114,128,0.30)' },
+  gps_off: { color: '#EF4444', label: '⚠️ GPS Off', ring: 'rgba(239,68,68,0.35)' },
+};
+
+const deriveGpsStatus = (timestamp, isGpsOn = true, now = Date.now()) => {
+  if (!timestamp) return 'offline';
+  
+  const gpsOn = isGpsOn !== false && isGpsOn !== 'false' && isGpsOn !== 0 && isGpsOn !== '0';
+  if (!gpsOn) return 'gps_off';
+
+  const secondsAgo = (now - new Date(timestamp).getTime()) / 1000;
+  if (!Number.isFinite(secondsAgo) || secondsAgo > DELAYED_MAX_AGE_SECONDS) return 'offline';
+  return secondsAgo <= LIVE_MAX_AGE_SECONDS ? 'live' : 'delayed';
+};
+
+const secondsSince = (timestamp, now = Date.now()) => {
+  if (!timestamp) return null;
+  const s = Math.round((now - new Date(timestamp).getTime()) / 1000);
+  return Number.isFinite(s) ? s : null;
+};
+
+const formatAgo = (seconds) => {
+  if (seconds === null || seconds === undefined) return 'unknown';
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
+};
+
 const getBearing = (lat1, lng1, lat2, lng2) => {
   const dLng = ((lng2 - lng1) * Math.PI) / 180;
   const y = Math.sin(dLng) * Math.cos((lat2 * Math.PI) / 180);
@@ -285,6 +321,7 @@ const FieldVisitsPage = () => {
   const [showBranchPins, setShowBranchPins] = useState(true);
   const [showClientPins, setShowClientPins] = useState(true);
   const [showStaffPins, setShowStaffPins] = useState(true);
+  const [showOnlyLiveStaff, setShowOnlyLiveStaff] = useState(false);
   const [leadSearchQuery, setLeadSearchQuery] = useState('');
   const [focusedLocation, setFocusedLocation] = useState(null);
   const [selectedLeadForLocation, setSelectedLeadForLocation] = useState(null);
@@ -401,36 +438,72 @@ const FieldVisitsPage = () => {
     };
   }, [canViewLiveTracking, selectedTrackedStaff, queryClient]);
 
+  // Re-evaluated on a timer as well as on data changes: a staff member who stops
+  // reporting must decay to Delayed and then Offline on screen, even if no new
+  // payload ever arrives to trigger a re-render.
+  const [statusNow, setStatusNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!canViewLiveTracking) return;
+    const t = setInterval(() => setStatusNow(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, [canViewLiveTracking]);
+
   const activeLiveTracking = React.useMemo(() => {
     if (!liveTrackingData) return [];
+
     return liveTrackingData.map(loc => {
       const rt = realtimeStaffLocations[loc.staff_id];
-      if (rt) {
-        return {
-          ...loc,
-          latitude: rt.latitude || loc.latitude,
-          longitude: rt.longitude || loc.longitude,
-          accuracy: rt.accuracy || loc.accuracy,
-          speed: rt.speed || loc.speed,
-          heading: rt.heading || loc.heading,
-          is_gps_on: rt.is_gps_on !== undefined ? rt.is_gps_on : loc.is_gps_on,
-          timestamp: rt.timestamp || loc.timestamp,
-          seconds_ago: 0,
-          status_label: '🟢 LIVE (WebSocket)'
-        };
-      }
-      return loc;
+      // Only let a socket update win when it is genuinely newer than the polled
+      // record; previously any socket message forced a permanent "LIVE" label.
+      const useRealtime =
+        rt && new Date(rt.timestamp || 0).getTime() > new Date(loc.timestamp || 0).getTime();
+
+      const merged = useRealtime
+        ? {
+            ...loc,
+            latitude: rt.latitude ?? loc.latitude,
+            longitude: rt.longitude ?? loc.longitude,
+            accuracy: rt.accuracy ?? loc.accuracy,
+            speed: rt.speed ?? loc.speed,
+            heading: rt.heading ?? loc.heading,
+            is_gps_on: rt.is_gps_on !== undefined ? rt.is_gps_on : loc.is_gps_on,
+            timestamp: rt.timestamp || loc.timestamp,
+          }
+        : loc;
+
+      const gps_status = deriveGpsStatus(merged.timestamp, merged.is_gps_on, statusNow);
+      return {
+        ...merged,
+        gps_status,
+        status_label: GPS_STATUS_STYLES[gps_status].label,
+        seconds_ago: secondsSince(merged.timestamp, statusNow),
+      };
     });
-  }, [liveTrackingData, realtimeStaffLocations]);
+  }, [liveTrackingData, realtimeStaffLocations, statusNow]);
+
+  const trackingCounts = React.useMemo(() => {
+    const counts = { live: 0, delayed: 0, offline: 0, gps_off: 0 };
+    activeLiveTracking.forEach(l => { counts[l.gps_status] = (counts[l.gps_status] || 0) + 1; });
+    return counts;
+  }, [activeLiveTracking]);
 
   // Fetch Staff Location Trail for Selected Staff Member (Full Daily Roadmap)
   const { data: staffLocationTrail } = useQuery({
     queryKey: ['location-trail', selectedTrackedStaff],
     queryFn: () => {
       if (selectedTrackedStaff === 'all') return Promise.resolve([]);
-      return api.get(`/field-visits/location-tracking/?user=${selectedTrackedStaff}`).then(res => {
+      // Today only, oldest first. The endpoint defaults to newest-first across
+      // all history, which drew the route backwards and joined separate days
+      // into one impossible journey.
+      const params = new URLSearchParams({
+        user: selectedTrackedStaff,
+        today: '1',
+        ordering: 'timestamp',
+        page_size: '500',
+      });
+      return api.get(`/field-visits/location-tracking/?${params}`).then(res => {
         const list = res.data.results || res.data;
-        return Array.isArray(list) ? list : [];
+        return Array.isArray(list) ? list.filter(p => p.latitude && p.longitude) : [];
       });
     },
     enabled: selectedTrackedStaff !== 'all'
@@ -444,6 +517,18 @@ const FieldVisitsPage = () => {
     },
     onError: (error) => {
       toast.error(error.response?.data?.detail || 'Failed to check in');
+    }
+  });
+
+  const startVisitMutation = useMutation({
+    mutationFn: ({ id, data }) => api.post(`/field-visits/field-visits/${id}/start/`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fieldvisits'] });
+      queryClient.invalidateQueries({ queryKey: ['live-tracking'] });
+      toast.success('Visit started — GPS tracking is active.');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail || 'Failed to start visit');
     }
   });
 
@@ -521,67 +606,87 @@ const FieldVisitsPage = () => {
     createVisitMutation.mutate(payload);
   };
 
+  // Keeps the current fix and the active visit id in refs so the watcher can be
+  // created once. Previously `filteredVisits` was a dependency, so every refetch
+  // tore down and rebuilt the watcher, and the reporting used stale coordinates.
+  const lastFixRef = React.useRef(null);
+  const lastReportAtRef = React.useRef(0);
+  const activeVisitIdRef = React.useRef(null);
+
   useEffect(() => {
-    if (!canManageVisits && navigator.geolocation) {
-      const flushOfflineQueue = async () => {
-        try {
-          const raw = localStorage.getItem('OFFLINE_GPS_QUEUE');
-          if (!raw) return;
-          const queue = JSON.parse(raw);
-          if (Array.isArray(queue) && queue.length > 0) {
-            await api.post('/field-visits/location-tracking/batch-sync/', { waypoints: queue });
-            localStorage.removeItem('OFFLINE_GPS_QUEUE');
-          }
-        } catch (e) {}
+    const active = (filteredVisits || []).find(v => v.status === 'active' && v.start_lat);
+    activeVisitIdRef.current = active ? active.id : null;
+  }, [filteredVisits]);
+
+  useEffect(() => {
+    if (canManageVisits || !navigator.geolocation) return;
+
+    const REPORT_INTERVAL_MS = 15000;
+    const MAX_ACCEPTABLE_ACCURACY_M = 100;
+
+    const flushOfflineQueue = async () => {
+      try {
+        const raw = localStorage.getItem('OFFLINE_GPS_QUEUE');
+        if (!raw) return;
+        const queue = JSON.parse(raw);
+        if (Array.isArray(queue) && queue.length > 0) {
+          await api.post('/field-visits/location-tracking/batch-sync/', { waypoints: queue });
+          localStorage.removeItem('OFFLINE_GPS_QUEUE');
+        }
+      } catch (e) {}
+    };
+
+    const queueOfflinePing = (ping) => {
+      try {
+        const raw = localStorage.getItem('OFFLINE_GPS_QUEUE');
+        const queue = raw ? JSON.parse(raw) : [];
+        queue.push(ping);
+        localStorage.setItem('OFFLINE_GPS_QUEUE', JSON.stringify(queue.slice(-200)));
+      } catch (e) {}
+    };
+
+    const report = (isGpsOn) => {
+      const fix = lastFixRef.current;
+      if (!fix) return;
+      const payload = {
+        latitude: fix.lat,
+        longitude: fix.lng,
+        accuracy: isGpsOn ? fix.accuracy : null,
+        speed: isGpsOn ? fix.speed : null,
+        is_gps_on: isGpsOn,
+        field_visit: activeVisitIdRef.current,
+        timestamp: new Date().toISOString(),
       };
+      api.post('/field-visits/location-tracking/', payload)
+        .then(() => flushOfflineQueue())
+        .catch(() => queueOfflinePing(payload));
+    };
 
-      const queueOfflinePing = (ping) => {
-        try {
-          const raw = localStorage.getItem('OFFLINE_GPS_QUEUE');
-          const queue = raw ? JSON.parse(raw) : [];
-          queue.push(ping);
-          localStorage.setItem('OFFLINE_GPS_QUEUE', JSON.stringify(queue.slice(-200)));
-        } catch (e) {}
-      };
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, accuracy, speed } = position.coords;
+        // Drop imprecise readings rather than plotting them as real positions.
+        if (accuracy != null && accuracy > MAX_ACCEPTABLE_ACCURACY_M) return;
 
-      const watchId = navigator.geolocation.watchPosition(
-        (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-            accuracy: position.coords.accuracy
-          });
-          
-          const activeVisit = filteredVisits.find(v => v.status === 'active' && v.start_lat);
-          const payload = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            speed: position.coords.speed || 0,
-            is_gps_on: true,
-            field_visit: activeVisit ? activeVisit.id : null,
-            timestamp: new Date().toISOString()
-          };
+        lastFixRef.current = { lat: latitude, lng: longitude, accuracy, speed: speed || 0 };
+        setUserLocation({ lat: latitude, lng: longitude, accuracy });
 
-          api.post('/field-visits/location-tracking/', payload)
-            .then(() => flushOfflineQueue())
-            .catch(() => queueOfflinePing(payload));
-        },
-        (error) => {
-          // If GPS is disabled or permission denied, report GPS OFF status
-          if (error.code === 1 || error.code === 2) {
-            api.post('/field-visits/location-tracking/', {
-              latitude: userLocation?.lat || 0,
-              longitude: userLocation?.lng || 0,
-              is_gps_on: false
-            }).catch(() => {});
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-      return () => navigator.geolocation.clearWatch(watchId);
-    }
-  }, [canManageVisits, filteredVisits]);
+        const now = Date.now();
+        if (now - lastReportAtRef.current >= REPORT_INTERVAL_MS) {
+          lastReportAtRef.current = now;
+          report(true);
+        }
+      },
+      (error) => {
+        // Permission denied or position unavailable: tell the server GPS is off
+        // so managers see an explicit GPS Off badge rather than a stale green pin.
+        if (error.code === 1 || error.code === 2) report(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [canManageVisits]);
 
   const updateLeadLocationMutation = useMutation({
     mutationFn: ({ id, lat, lng }) => api.patch(`/leads/leads/${id}/`, { lat, lng }),
@@ -606,7 +711,10 @@ const FieldVisitsPage = () => {
     });
   };
 
-  const handleGPSCheckIn = (visitId) => {
+  // `mode` decides whether this records a waypoint or actually begins the visit.
+  // The "Start Visit" button used to call check-in, which never set start_lat, so
+  // the visit stayed Scheduled and never appeared as in progress.
+  const requestPositionThen = (visitId, mode) => {
     setLocationError(null);
     if (!navigator.geolocation) {
       toast.error('Geolocation is not supported by your browser');
@@ -615,19 +723,24 @@ const FieldVisitsPage = () => {
 
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        checkInMutation.mutate({
-          id: visitId,
-          data: {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          }
-        });
+        const data = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        };
+        if (mode === 'start') startVisitMutation.mutate({ id: visitId, data });
+        else checkInMutation.mutate({ id: visitId, data });
       },
-      (error) => {
-        toast.error('Unable to retrieve location');
-      }
+      () => {
+        setLocationError('Unable to retrieve location');
+        toast.error('Unable to retrieve location. Check browser location permission.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   };
+
+  const handleGPSCheckIn = (visitId) => requestPositionThen(visitId, 'checkin');
+  const handleStartVisit = (visitId) => requestPositionThen(visitId, 'start');
 
   const handleViewDetails = (visit) => {
     setSelectedVisit(visit);
@@ -929,7 +1042,20 @@ const FieldVisitsPage = () => {
                       : 'bg-background text-muted-foreground border-border opacity-60'
                   }`}
                 >
-                  🟢 Live Staff ({liveTrackingData?.length || 0}) {showStaffPins ? '✓' : 'OFF'}
+                  🟢 Live Staff ({trackingCounts.live}/{activeLiveTracking.length}) {showStaffPins ? '✓' : 'OFF'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOnlyLiveStaff(!showOnlyLiveStaff)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all border ${
+                    showOnlyLiveStaff
+                      ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs font-black'
+                      : 'bg-background text-muted-foreground border-border opacity-80 hover:opacity-100'
+                  }`}
+                  title="Toggle between showing only active live staff vs all staff statuses"
+                >
+                  {showOnlyLiveStaff ? '🟢 Live Staff Only' : '📍 All Staff Statuses'}
                 </button>
               </div>
 
@@ -1362,35 +1488,46 @@ const FieldVisitsPage = () => {
                   );
                 })()}
 
-                {/* ── 2. LIVE FIELD STAFF MAP PINS (Controlled by Toggle & Staff Filter) ── */}
-                {showStaffPins && (selectedTrackedStaff === 'all' ? activeLiveTracking : activeLiveTracking?.filter(loc => String(loc.staff_id) === String(selectedTrackedStaff)))?.map((loc, i) => {
-                  const staffColors = ['#3B82F6', '#10B981', '#8B5CF6', '#EF4444', '#F59E0B', '#EC4899', '#06B6D4'];
-                  const color = staffColors[i % staffColors.length];
+                {/* ── 2. LIVE FIELD STAFF MAP PINS (Controlled by Toggle, Live-Only Filter & Staff Selector) ── */}
+                {showStaffPins && (selectedTrackedStaff === 'all' ? activeLiveTracking : activeLiveTracking?.filter(loc => String(loc.staff_id) === String(selectedTrackedStaff)))
+                  ?.filter(loc => !showOnlyLiveStaff || loc.gps_status === 'live' || loc.gps_status === 'delayed')
+                  ?.map((loc, i) => {
+                  // Colour encodes presence, not identity. A grey or red pin means
+                  // the position is last-known, not where the person is now.
+                  const style = GPS_STATUS_STYLES[loc.gps_status] || GPS_STATUS_STYLES.offline;
+                  const color = style.color;
+                  const isLive = loc.gps_status === 'live';
+                  const isGpsOff = loc.gps_status === 'gps_off';
+                  const isOffline = loc.gps_status === 'offline';
                   const firstName = (loc.staff_name || 'Staff').split(' ')[0];
+
+                  const opacity = isLive ? 1 : loc.gps_status === 'delayed' ? 0.85 : isGpsOff ? 0.6 : 0.45;
 
                   return (
                     <Marker
                       key={loc.staff_id || i}
                       position={[loc.latitude, loc.longitude]}
+                      opacity={opacity}
                       icon={L.divIcon({
                         className: 'custom-staff-marker',
                         html: `
-                          <div style="display:flex;flex-direction:column;align-items:center;width:100px;">
+                          <div style="display:flex;flex-direction:column;align-items:center;width:130px;opacity:${opacity};">
                             <div style="
                               background:${color};color:#fff;font-size:10px;font-weight:700;
                               padding:3px 8px;border-radius:12px;white-space:nowrap;
                               box-shadow:0 2px 8px rgba(0,0,0,0.3);letter-spacing:0.3px;
                               border:2px solid #fff;
-                            ">${firstName}</div>
+                            ">${firstName} · ${style.label}</div>
                             <div style="
                               width:14px;height:14px;background:${color};border-radius:50%;
-                              border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.35);
+                              border:3px solid #fff;
+                              box-shadow:0 2px 6px rgba(0,0,0,0.35)${isLive ? `, 0 0 0 6px ${style.ring}` : ''};
                               margin-top:2px;
                             "></div>
                           </div>
                         `,
-                        iconSize: [100, 44],
-                        iconAnchor: [50, 44],
+                        iconSize: [130, 44],
+                        iconAnchor: [65, 44],
                         popupAnchor: [0, -44]
                       })}
                     >
@@ -1402,16 +1539,25 @@ const FieldVisitsPage = () => {
                             </div>
                             <div>
                               <strong style={{ fontSize: 13, display: 'block' }}>{loc.staff_name}</strong>
-                              <span style={{ fontSize: 10, opacity: 0.9 }}>
-                                {loc.status_label || (loc.is_gps_on === false ? '⚠️ GPS OFF' : (loc.seconds_ago > 600 ? '🔴 Offline' : '🟢 LIVE'))}
-                              </span>
+                              <span style={{ fontSize: 10, opacity: 0.9 }}>{style.label}</span>
                             </div>
                           </div>
+                          {!isLive && (
+                            <p style={{ fontSize: 11, margin: '4px 0', padding: '5px 7px', borderRadius: 5, background: '#FEF3C7', color: '#92400E', fontWeight: 600 }}>
+                              {loc.gps_status === 'gps_off'
+                                ? 'GPS is switched off on this device. This is their last known position.'
+                                : `No update for ${formatAgo(loc.seconds_ago)}. This is their last known position.`}
+                            </p>
+                          )}
                           {loc.lead_name && <p style={{ fontSize: 12, margin: '4px 0' }}>📍 <strong>Visiting:</strong> {loc.lead_name}</p>}
                           <p style={{ fontSize: 11, color: '#666', margin: '4px 0' }}>
-                            🕐 <strong>Updated:</strong> {new Date(loc.timestamp).toLocaleTimeString()} {loc.seconds_ago !== undefined ? `(${loc.seconds_ago}s ago)` : ''}
+                            🕐 <strong>Updated:</strong> {new Date(loc.timestamp).toLocaleTimeString()} ({formatAgo(loc.seconds_ago)})
                           </p>
-                          {loc.accuracy && <p style={{ fontSize: 10, color: '#4B5563', margin: '2px 0', fontWeight: 600 }}>📡 GPS Accuracy: ±{Math.round(loc.accuracy)}m</p>}
+                          {loc.accuracy != null ? (
+                            <p style={{ fontSize: 10, color: '#4B5563', margin: '2px 0', fontWeight: 600 }}>📡 GPS Accuracy: ±{Math.round(loc.accuracy)}m</p>
+                          ) : (
+                            <p style={{ fontSize: 10, color: '#9CA3AF', margin: '2px 0' }}>📡 GPS accuracy not reported</p>
+                          )}
                           {loc.speed > 0 && <p style={{ fontSize: 10, color: '#0F6E56', margin: '2px 0', fontWeight: 700 }}>🚗 Speed: {(loc.speed * 3.6).toFixed(1)} km/h</p>}
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             <a
@@ -1471,7 +1617,12 @@ const FieldVisitsPage = () => {
                       )}
                     </div>
                     <div className="mt-4 flex gap-2">
-                      <Button size="sm" className="flex-1 bg-[#0F6E56] hover:bg-[#094d3c]" onClick={() => handleGPSCheckIn(visit.id)}>
+                      <Button
+                        size="sm"
+                        className="flex-1 bg-[#0F6E56] hover:bg-[#094d3c]"
+                        onClick={() => handleStartVisit(visit.id)}
+                        disabled={startVisitMutation.isPending}
+                      >
                         <Navigation size={14} className="mr-2" /> Start Visit
                       </Button>
                       <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => handleViewDetails(visit)}>
@@ -1576,6 +1727,15 @@ const FieldVisitsPage = () => {
                           <TableCell className="text-right">
                             {(!canManageVisits && visit.status === 'active' && visit.start_lat) ? (
                               <div className="flex justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8"
+                                  onClick={() => handleGPSCheckIn(visit.id)}
+                                  disabled={checkInMutation.isPending}
+                                >
+                                  <Navigation size={14} className="mr-1" /> Check In
+                                </Button>
                                 <Button 
                                   size="sm" 
                                   variant="outline" 
