@@ -57,7 +57,22 @@ const CampaignIntegrationsPage = () => {
     },
   });
 
-  const handleConnect = (platform) => {
+  const handleConnect = async (platform) => {
+    const googlePlatforms = ['google_analytics', 'google_ads', 'youtube_analytics', 'google_all'];
+    if (googlePlatforms.includes(platform)) {
+      try {
+        localStorage.removeItem('oauth_branch_id');
+        localStorage.setItem('oauth_platform', 'google_analytics');
+        const redirectUri = window.location.origin + '/campaigns/integrations/callback';
+        const res = await api.get('/campaigns/integrations/oauth-url/', {
+          params: { platform: 'google_analytics', redirect_uri: redirectUri }
+        });
+        window.location.href = res.data.url;
+      } catch (err) {
+        alert(`Failed to start Google sign-in: ${err.response?.data?.detail || err.message}`);
+      }
+      return;
+    }
     setSelectedPlatform(platform);
     setIsModalOpen(true);
   };
@@ -116,14 +131,22 @@ const CampaignIntegrationsPage = () => {
             Connect external platforms to sync analytics and track campaign performance
           </p>
         </div>
-        <Button
-          onClick={() => refetch()}
-          variant="outline"
-          className="gap-2"
-        >
-          <RefreshCw size={16} />
-          Refresh
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            onClick={() => handleConnect('google_all')}
+            className="gap-2 bg-black text-white hover:bg-gray-800"
+          >
+            Connect Google Ads, Analytics & YouTube
+          </Button>
+          <Button
+            onClick={() => refetch()}
+            variant="outline"
+            className="gap-2"
+          >
+            <RefreshCw size={16} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* Info Banner */}
@@ -198,7 +221,7 @@ const CampaignIntegrationsPage = () => {
             <Loader2 className="animate-spin text-gray-400" size={32} />
           </div>
         ) : filteredIntegrations.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 grid-cols-1 xl:grid-cols-2">
             {filteredIntegrations.map((integration) => (
               <IntegrationCard
                 key={integration.id}

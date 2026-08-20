@@ -54,7 +54,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ['integration-analytics', integration.id, days],
     queryFn: () => api.get(`/campaigns/integrations/${integration.id}/analytics/?days=${days}`).then(res => res.data),
-    enabled: integration.is_connected,
+    enabled: integration.is_connected && !integration.needs_reconnect,
   });
 
   const syncMutation = useMutation({
@@ -144,13 +144,13 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
       
       {/* Header */}
       <div className="p-5 relative">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
-            <div className={`text-4xl p-3 rounded-2xl ${config.bg} shadow-inner`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`text-3xl p-3 rounded-2xl ${config.bg} shadow-inner shrink-0`}>
               {config.icon}
             </div>
-            <div>
-              <h3 className="font-bold text-lg text-gray-900 leading-tight">{integration.platform_name}</h3>
+            <div className="min-w-0">
+              <h3 className="font-bold text-lg text-gray-900 leading-tight truncate">{integration.platform_name}</h3>
               <div className="flex flex-col gap-1 mt-1">
                 {integration.is_connected ? (
                   <>
@@ -181,13 +181,15 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
               </div>
             </div>
           </div>
-          <SyncStatusBadge status={integration.sync_status} />
+          <div className="shrink-0">
+            <SyncStatusBadge status={integration.needs_reconnect ? 'reconnect' : integration.sync_status} />
+          </div>
         </div>
       </div>
 
       {integration.needs_reconnect && (
-        <div className="mx-5 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
-          Google is not signed in, so these cards cannot show live metrics. Click Connect again and complete Sign in with Google.
+        <div className="mx-5 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium leading-relaxed">
+          Google is not signed in. Click Reconnect Google once — it connects Ads, Analytics, and YouTube together with live APIs.
         </div>
       )}
 
@@ -199,7 +201,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
       )}
 
       {/* Platform-Specific Analytics Grid */}
-      {integration.is_connected && (
+      {integration.is_connected && !integration.needs_reconnect && (
         <div className="px-5 pb-5 grid grid-cols-2 gap-3 relative">
           {analyticsLoading ? (
             <>
@@ -243,7 +245,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
       )}
 
       {/* Detailed Feed / Video List */}
-      {integration.is_connected && isExpanded && (
+      {integration.is_connected && !integration.needs_reconnect && isExpanded && (
         <div className="px-5 pb-5 border-t border-gray-100/80 pt-4 space-y-3">
           <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 flex items-center justify-between">
             <span>{integration.platform === 'youtube_analytics' ? '🎬 Recent Videos Analytics' : 'Latest Feed / Posts'}</span>
@@ -302,25 +304,27 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
       )}
 
       {/* Footer Actions */}
-      <div className="px-5 py-4 bg-gray-50/80 backdrop-blur-md border-t border-gray-100 flex items-center justify-between">
-        <div className="flex gap-2">
+      <div className="px-4 py-3 bg-gray-50/80 border-t border-gray-100 space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
           {integration.is_connected ? (
             <>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={handleSync}
-                disabled={syncMutation.isPending}
-                className="rounded-xl h-9 px-4 border-gray-200 hover:bg-white"
-              >
-                {syncMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} className="mr-1.5" />}
-                Sync
-              </Button>
+              {!integration.needs_reconnect && (
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={handleSync}
+                  disabled={syncMutation.isPending}
+                  className="rounded-xl h-9 px-3 border-gray-200 hover:bg-white"
+                >
+                  {syncMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} className="mr-1.5" />}
+                  Sync
+                </Button>
+              )}
               {integration.needs_reconnect && (
                 <Button
                   size="sm"
                   onClick={(e) => { e.stopPropagation(); onConnect(integration.platform); }}
-                  className="rounded-xl h-9 px-4 bg-black hover:bg-gray-800 text-white border-none font-bold"
+                  className="rounded-xl h-9 px-3 bg-black hover:bg-gray-800 text-white border-none font-bold"
                 >
                   Reconnect Google
                 </Button>
@@ -332,13 +336,14 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 className="rounded-xl h-9 px-3 text-gray-600 hover:bg-gray-100 font-bold text-xs gap-1 border border-gray-200"
               >
                 {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                {isExpanded ? 'Hide Details' : 'View Full Details →'}
+                {isExpanded ? 'Hide' : 'Details'}
               </Button>
               <Button 
                 size="sm" 
                 variant="ghost" 
                 onClick={handleDisconnect}
-                className="rounded-xl h-9 px-3 text-red-500 hover:text-red-600 hover:bg-red-50"
+                className="rounded-xl h-9 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 ml-auto"
+                title="Disconnect"
               >
                 <Unplug size={14} />
               </Button>
@@ -350,7 +355,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 onClick={() => onConnect(integration.platform)}
                 className="rounded-xl h-9 px-5 bg-black hover:bg-gray-800 text-white border-none font-bold"
               >
-                {integration.needs_reconnect ? 'Reconnect Google' : 'Connect'}
+                Connect
               </Button>
               {integration.id && (
                 <Button 
@@ -365,11 +370,10 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
             </>
           )}
         </div>
-        
-        {integration.last_sync && (
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
+        {integration.last_sync && !integration.needs_reconnect && (
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
             Last Sync: {new Date(integration.last_sync).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-          </span>
+          </p>
         )}
       </div>
     </div>

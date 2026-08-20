@@ -31,10 +31,10 @@ const SyncStatusBadge = ({ status, size = 'sm' }) => {
       label: 'Synced',
       className: 'bg-green-50 text-green-700 border-green-200',
     },
-    error: {
+    reconnect: {
       icon: AlertCircle,
-      label: 'Error',
-      className: 'bg-red-50 text-red-700 border-red-200',
+      label: 'Reconnect',
+      className: 'bg-amber-50 text-amber-800 border-amber-200',
     },
   };
 
