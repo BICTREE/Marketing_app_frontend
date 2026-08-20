@@ -56,6 +56,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
     queryKey: ['integration-analytics', integration.id, days],
     queryFn: () => api.get(`/campaigns/integrations/${integration.id}/analytics/?days=${days}`).then(res => res.data),
     enabled: integration.is_connected && !integration.needs_reconnect,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const syncMutation = useMutation({

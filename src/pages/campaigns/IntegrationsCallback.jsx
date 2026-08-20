@@ -44,7 +44,9 @@ const IntegrationsCallback = () => {
             ? 'Google Ads'
             : platform === 'youtube_analytics'
               ? 'YouTube'
-              : 'Google Ads, Analytics, and YouTube'
+              : platform === 'google_search_console'
+                ? 'Search Console'
+                : 'Google Analytics, Search Console, Ads, and YouTube'
         );
         
         await api.post('/campaigns/integrations/google-callback/', {

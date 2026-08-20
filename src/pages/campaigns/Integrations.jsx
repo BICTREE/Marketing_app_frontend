@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/axios';
 import { 
@@ -38,6 +38,7 @@ const CampaignIntegrationsPage = () => {
   const [days, setDays] = useState(7);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [connectingBindu, setConnectingBindu] = useState(false);
+  const bootstrappedRef = useRef(false);
 
   // Fetch Branches
   const { data: branchesData } = useQuery({
@@ -57,7 +58,16 @@ const CampaignIntegrationsPage = () => {
         return Array.isArray(data) ? data : [];
       });
     },
+    refetchInterval: 5 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (bootstrappedRef.current) return;
+    bootstrappedRef.current = true;
+    api.post('/campaigns/integrations/connect-bindu/')
+      .then(() => refetch())
+      .catch(() => {});
+  }, [refetch]);
 
   const startGoogleSignIn = async () => {
     localStorage.removeItem('oauth_branch_id');
