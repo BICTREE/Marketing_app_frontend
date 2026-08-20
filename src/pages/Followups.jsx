@@ -52,7 +52,8 @@ const Followups = () => {
   const pathPrefix = isStaffView ? '/staff/leads' : '/leads';
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
-  const [assignmentFilter, setAssignmentFilter] = useState('unassigned');
+  const [assignmentFilter, setAssignmentFilter] = useState('all');
+  const [selectedStaffFilter, setSelectedStaffFilter] = useState('all');
   const [timeFrame, setTimeFrame] = useState('all');
   const [selectedFollowup, setSelectedFollowup] = useState(null);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -130,14 +131,17 @@ const Followups = () => {
   };
 
   const { data: followups, isLoading } = useQuery({
-    queryKey: ['followups', statusFilter, timeFrame],
-    queryFn: () => api.get('/leads/followups/', { 
-      params: { 
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        time_frame: timeFrame !== 'all' ? timeFrame : undefined,
-        assigned_to__isnull: assignmentFilter === 'unassigned' ? 'true' : assignmentFilter === 'assigned' ? 'false' : undefined
-      } 
-    }).then(res => res.data.results || res.data)
+    queryKey: ['followups', statusFilter, timeFrame, assignmentFilter, selectedStaffFilter],
+    queryFn: () => {
+      const params = {};
+      if (statusFilter !== 'all') params.status = statusFilter;
+      if (timeFrame !== 'all') params.time_frame = timeFrame;
+      if (assignmentFilter === 'unassigned') params.assigned_to__isnull = 'true';
+      if (assignmentFilter === 'assigned') params.assigned_to__isnull = 'false';
+      if (selectedStaffFilter !== 'all') params.assigned_to = selectedStaffFilter;
+
+      return api.get('/leads/followups/', { params }).then(res => res.data.results || res.data);
+    }
   });
 
   const { data: usersData } = useQuery({
@@ -207,7 +211,8 @@ const Followups = () => {
   const filteredFollowups = Array.isArray(followups) ? followups.filter(f => 
     f.lead_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     f.lead_phone?.includes(searchTerm) ||
-    f.note?.toLowerCase().includes(searchTerm.toLowerCase())
+    f.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    f.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase())
   ) : [];
 
   return (
@@ -274,6 +279,23 @@ const Followups = () => {
               <SelectItem value="unassigned">Unassigned Tasks</SelectItem>
             </SelectContent>
           </Select>
+
+          {isAdmin && Array.isArray(usersData) && (
+            <Select value={selectedStaffFilter} onValueChange={setSelectedStaffFilter}>
+              <SelectTrigger className="w-[210px]">
+                <User className="mr-2" size={16} />
+                <SelectValue placeholder="Filter by Staff Member" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Team Members</SelectItem>
+                {usersData.map(u => (
+                  <SelectItem key={u.id} value={String(u.id)}>
+                    {u.full_name} ({u.role?.replace('_', ' ')})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border/50">

@@ -48,13 +48,17 @@ const GPS_STATUS_STYLES = {
 };
 
 const deriveGpsStatus = (timestamp, isGpsOn = true, now = Date.now()) => {
-  if (!timestamp) return 'offline';
-  
   const gpsOn = isGpsOn !== false && isGpsOn !== 'false' && isGpsOn !== 0 && isGpsOn !== '0';
-  if (!gpsOn) return 'gps_off';
+
+  if (!timestamp) return gpsOn ? 'offline' : 'gps_off';
 
   const secondsAgo = (now - new Date(timestamp).getTime()) / 1000;
-  if (!Number.isFinite(secondsAgo) || secondsAgo > DELAYED_MAX_AGE_SECONDS) return 'offline';
+  if (!Number.isFinite(secondsAgo) || secondsAgo > DELAYED_MAX_AGE_SECONDS) {
+    return 'offline';
+  }
+  // GPS-off wins over a fresh timestamp: a last-known coordinate must not
+  // keep the pin green after the device reports the chip is off.
+  if (!gpsOn) return 'gps_off';
   return secondsAgo <= LIVE_MAX_AGE_SECONDS ? 'live' : 'delayed';
 };
 
@@ -378,7 +382,7 @@ const FieldVisitsPage = () => {
   const { data: liveTrackingData } = useQuery({
     queryKey: ['live-tracking'],
     queryFn: () => api.get('/field-visits/live-tracking/').then(res => res.data.locations || []),
-    refetchInterval: 10000,
+    refetchInterval: 5000,
     enabled: !!canViewLiveTracking
   });
 
@@ -444,7 +448,7 @@ const FieldVisitsPage = () => {
   const [statusNow, setStatusNow] = useState(() => Date.now());
   useEffect(() => {
     if (!canViewLiveTracking) return;
-    const t = setInterval(() => setStatusNow(Date.now()), 15000);
+    const t = setInterval(() => setStatusNow(Date.now()), 5000);
     return () => clearInterval(t);
   }, [canViewLiveTracking]);
 
@@ -453,10 +457,13 @@ const FieldVisitsPage = () => {
 
     return liveTrackingData.map(loc => {
       const rt = realtimeStaffLocations[loc.staff_id];
-      // Only let a socket update win when it is genuinely newer than the polled
-      // record; previously any socket message forced a permanent "LIVE" label.
+      // A last-known "live" socket ping must not override a GPS-off poll.
+      const rtGpsOn = rt && rt.is_gps_on !== false && rt.is_gps_on !== 'false' && rt.is_gps_on !== 0 && rt.is_gps_on !== '0';
+      const pollGpsOff = loc.is_gps_on === false || loc.is_gps_on === 'false' || loc.gps_status === 'gps_off';
       const useRealtime =
-        rt && new Date(rt.timestamp || 0).getTime() > new Date(loc.timestamp || 0).getTime();
+        rt &&
+        new Date(rt.timestamp || 0).getTime() > new Date(loc.timestamp || 0).getTime() &&
+        !(pollGpsOff && rtGpsOn);
 
       const merged = useRealtime
         ? {
@@ -468,9 +475,12 @@ const FieldVisitsPage = () => {
             heading: rt.heading ?? loc.heading,
             is_gps_on: rt.is_gps_on !== undefined ? rt.is_gps_on : loc.is_gps_on,
             timestamp: rt.timestamp || loc.timestamp,
+            gps_status: rt.gps_status || loc.gps_status,
           }
         : loc;
 
+      // Re-derive so a silent device decays on screen; GPS-off from either the
+      // poll or the socket is preserved even when the coordinate is still fresh.
       const gps_status = deriveGpsStatus(merged.timestamp, merged.is_gps_on, statusNow);
       return {
         ...merged,
