@@ -353,10 +353,10 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 size="sm" 
                 variant="ghost" 
                 onClick={handleDisconnect}
-                className="rounded-xl h-9 px-2 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 ml-auto"
-                title="Disconnect"
+                className="rounded-xl h-9 px-3 shrink-0 text-gray-400 hover:text-gray-700 hover:bg-gray-100 ml-auto text-xs font-medium"
+                title="Disconnect this integration"
               >
-                <Unplug size={14} />
+                Disconnect
               </Button>
             </>
           ) : (
