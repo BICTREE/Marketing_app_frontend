@@ -121,7 +121,7 @@ const ConnectionModal = ({ platform, isOpen, onClose, onSuccess }) => {
               <div className="space-y-4">
                 <div className="bg-muted/30 p-4 rounded-lg border border-dashed text-center">
                   <p className="text-sm text-muted-foreground mb-4">
-                    Connect your Google Analytics account to track campaign performance and website traffic.
+                    Connect your {getPlatformName(platform)} account. Metrics are read-only and pulled live from Google — nothing is invented.
                   </p>
                   <Button 
                     type="button"

@@ -9,6 +9,7 @@ const IntegrationsCallback = () => {
   const location = useLocation();
   const [status, setStatus] = useState('processing'); // processing, success, error
   const [errorMessage, setErrorMessage] = useState('');
+  const [connectedPlatform, setConnectedPlatform] = useState('Google');
   const processedRef = React.useRef(false);
 
   useEffect(() => {
@@ -38,6 +39,9 @@ const IntegrationsCallback = () => {
         const platform = localStorage.getItem('oauth_platform') || 'google_analytics';
         localStorage.removeItem('oauth_branch_id');
         localStorage.removeItem('oauth_platform');
+        setConnectedPlatform(
+          platform === 'google_ads' ? 'Google Ads' : platform === 'youtube_analytics' ? 'YouTube' : 'Google Analytics'
+        );
         
         await api.post('/campaigns/integrations/google-callback/', {
           code,
@@ -81,7 +85,7 @@ const IntegrationsCallback = () => {
               <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto" />
               <h2 className="text-xl font-semibold text-green-700">Success!</h2>
               <p className="text-muted-foreground">
-                Your Google Analytics account has been connected.
+                Your {connectedPlatform} account has been connected. Live metrics will load next.
               </p>
               <div className="pt-4">
                 <button 

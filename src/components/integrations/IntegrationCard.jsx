@@ -45,6 +45,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
     instagram_insights: { color: 'text-[#E4405F]', bg: 'bg-[#E4405F]/5', border: 'border-[#E4405F]/20', icon: '📷' },
     google_analytics: { color: 'text-[#34A853]', bg: 'bg-[#34A853]/5', border: 'border-[#34A853]/20', icon: '📊' },
     google_ads: { color: 'text-[#4285F4]', bg: 'bg-[#4285F4]/5', border: 'border-[#4285F4]/20', icon: '📣' },
+    youtube_analytics: { color: 'text-[#FF0000]', bg: 'bg-[#FF0000]/5', border: 'border-[#FF0000]/20', icon: '▶️' },
     default: { color: 'text-[#C9972A]', bg: 'bg-[#C9972A]/5', border: 'border-[#C9972A]/20', icon: '🔌' }
   };
 
@@ -58,7 +59,11 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
 
   const syncMutation = useMutation({
     mutationFn: () => api.post(`/campaigns/integrations/${integration.id}/sync/`),
-    onSettled: () => refetch(),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['integration-analytics', integration.id] });
+      queryClient.invalidateQueries({ queryKey: ['integration-posts', integration.id] });
+      refetch();
+    },
   });
 
   const { data: latestPosts, isLoading: postsLoading } = useQuery({
@@ -85,7 +90,9 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
   const { data: properties } = useQuery({
     queryKey: ['integration-properties', integration.id],
     queryFn: () => api.get(`/campaigns/integrations/${integration.id}/properties/`).then(res => res.data),
-    enabled: integration.is_connected && integration.platform === 'google_analytics',
+    enabled: integration.is_connected && (
+      integration.platform === 'google_analytics' || integration.platform === 'google_ads'
+    ),
   });
 
   const selectPropertyMutation = useMutation({
@@ -151,7 +158,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                       Active Property:
                     </span>
-                    {integration.platform === 'google_analytics' && properties && properties.length > 0 ? (
+                    { (integration.platform === 'google_analytics' || integration.platform === 'google_ads') && properties && properties.length > 0 ? (
                       <select
                         value={integration.account_id}
                         onChange={handlePropertyChange}
@@ -178,6 +185,12 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
         </div>
       </div>
 
+      {integration.needs_reconnect && (
+        <div className="mx-5 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium">
+          Google is not signed in, so these cards cannot show live metrics. Click Connect again and complete Sign in with Google.
+        </div>
+      )}
+
       {/* Sync Error Message */}
       {integration.sync_status === 'error' && integration.sync_error && (
         <div className="mx-5 mb-3 p-3 bg-red-50 border border-red-100 rounded-xl text-xs text-red-600 font-medium">
@@ -199,9 +212,9 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
             </>
           ) : integration.platform === 'youtube_analytics' ? (
             <>
-              <Metric label="Video Views" value={analytics?.video_views ?? analytics?.impressions ?? 0} icon={<Eye />} colorClass="text-[#FF0000]" />
+              <Metric label="Video Views" value={analytics?.video_views || analytics?.lifetime_views || 0} icon={<Eye />} colorClass="text-[#FF0000]" />
               <Metric label="Engagement / Likes" value={analytics?.engagement ?? analytics?.likes ?? 0} icon={<Target />} colorClass="text-[#FF0000]" />
-              <Metric label="Subscribers" value={analytics?.subscribers ?? analytics?.conversions ?? 0} icon={<Users />} colorClass="text-[#FF0000]" />
+              <Metric label="Subscribers" value={analytics?.subscribers ?? 0} icon={<Users />} colorClass="text-[#FF0000]" />
               <Metric label="Channel Videos" value={analytics?.video_count ?? 0} icon={<TrendingUp />} colorClass="text-[#FF0000]" />
             </>
           ) : integration.platform === 'google_analytics' ? (
@@ -303,6 +316,15 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 {syncMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} className="mr-1.5" />}
                 Sync
               </Button>
+              {integration.needs_reconnect && (
+                <Button
+                  size="sm"
+                  onClick={(e) => { e.stopPropagation(); onConnect(integration.platform); }}
+                  className="rounded-xl h-9 px-4 bg-black hover:bg-gray-800 text-white border-none font-bold"
+                >
+                  Reconnect Google
+                </Button>
+              )}
               <Button 
                 size="sm" 
                 variant="ghost" 
@@ -328,7 +350,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 onClick={() => onConnect(integration.platform)}
                 className="rounded-xl h-9 px-5 bg-black hover:bg-gray-800 text-white border-none font-bold"
               >
-                Connect
+                {integration.needs_reconnect ? 'Reconnect Google' : 'Connect'}
               </Button>
               {integration.id && (
                 <Button 
