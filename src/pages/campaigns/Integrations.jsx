@@ -36,6 +36,7 @@ const CampaignIntegrationsPage = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [days, setDays] = useState(7);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [connectingBindu, setConnectingBindu] = useState(false);
 
   // Fetch Branches
   const { data: branchesData } = useQuery({
@@ -57,19 +58,35 @@ const CampaignIntegrationsPage = () => {
     },
   });
 
+  const startGoogleSignIn = async () => {
+    localStorage.removeItem('oauth_branch_id');
+    localStorage.setItem('oauth_platform', 'google_all');
+    const redirectUri = window.location.origin + '/campaigns/integrations/callback';
+    const res = await api.get('/campaigns/integrations/oauth-url/', {
+      params: { platform: 'google_all', redirect_uri: redirectUri }
+    });
+    window.location.href = res.data.url;
+  };
+
   const handleConnect = async (platform) => {
     const googlePlatforms = ['google_analytics', 'google_ads', 'youtube_analytics', 'google_all'];
     if (googlePlatforms.includes(platform)) {
+      if (platform === 'google_analytics' || platform === 'google_ads') {
+        try {
+          await startGoogleSignIn();
+        } catch (err) {
+          alert(`Failed to start Google sign-in: ${err.response?.data?.detail || err.message}`);
+        }
+        return;
+      }
       try {
-        localStorage.removeItem('oauth_branch_id');
-        localStorage.setItem('oauth_platform', 'google_all');
-        const redirectUri = window.location.origin + '/campaigns/integrations/callback';
-        const res = await api.get('/campaigns/integrations/oauth-url/', {
-          params: { platform: 'google_all', redirect_uri: redirectUri }
-        });
-        window.location.href = res.data.url;
+        setConnectingBindu(true);
+        await api.post('/campaigns/integrations/connect-bindu/');
+        await refetch();
       } catch (err) {
-        alert(`Failed to start Google sign-in: ${err.response?.data?.detail || err.message}`);
+        alert(`Failed to connect Bindu APIs: ${err.response?.data?.detail || err.message}`);
+      } finally {
+        setConnectingBindu(false);
       }
       return;
     }
@@ -134,9 +151,17 @@ const CampaignIntegrationsPage = () => {
         <div className="flex flex-wrap items-center gap-2">
           <Button
             onClick={() => handleConnect('google_all')}
+            disabled={connectingBindu}
             className="gap-2 bg-black text-white hover:bg-gray-800"
           >
-            Connect Google Ads, Analytics & YouTube
+            {connectingBindu ? 'Connecting Bindu APIs…' : 'Use Bindu Google APIs'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => startGoogleSignIn().catch((err) => alert(`Failed to start Google sign-in: ${err.response?.data?.detail || err.message}`))}
+            className="gap-2"
+          >
+            Sign in with Bindu Google
           </Button>
           <Button
             onClick={() => refetch()}
@@ -157,8 +182,9 @@ const CampaignIntegrationsPage = () => {
             <div>
               <h3 className="font-semibold text-blue-900">READ-ONLY Analytics Integration</h3>
               <p className="text-sm text-blue-700 mt-1">
-                This module provides read-only access to external platform analytics. 
-                It does not publish posts, schedule content, or control social media accounts.
+                YouTube loads from the Bindu channel APIs with no personal Gmail.
+                Website and Ads reports need the Bindu Google account that owns
+                property G-BCCC6B1DHX — not an outside account.
               </p>
             </div>
           </div>
