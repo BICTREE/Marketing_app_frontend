@@ -58,27 +58,9 @@ const CampaignIntegrationsPage = () => {
     },
   });
 
-  const startGoogleSignIn = async () => {
-    localStorage.removeItem('oauth_branch_id');
-    localStorage.setItem('oauth_platform', 'google_all');
-    const redirectUri = window.location.origin + '/campaigns/integrations/callback';
-    const res = await api.get('/campaigns/integrations/oauth-url/', {
-      params: { platform: 'google_all', redirect_uri: redirectUri }
-    });
-    window.location.href = res.data.url;
-  };
-
   const handleConnect = async (platform) => {
     const googlePlatforms = ['google_analytics', 'google_ads', 'youtube_analytics', 'google_all'];
     if (googlePlatforms.includes(platform)) {
-      if (platform === 'google_analytics' || platform === 'google_ads') {
-        try {
-          await startGoogleSignIn();
-        } catch (err) {
-          alert(`Failed to start Google sign-in: ${err.response?.data?.detail || err.message}`);
-        }
-        return;
-      }
       try {
         setConnectingBindu(true);
         await api.post('/campaigns/integrations/connect-bindu/');
@@ -154,14 +136,7 @@ const CampaignIntegrationsPage = () => {
             disabled={connectingBindu}
             className="gap-2 bg-black text-white hover:bg-gray-800"
           >
-            {connectingBindu ? 'Connecting Bindu APIs…' : 'Use Bindu Google APIs'}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => startGoogleSignIn().catch((err) => alert(`Failed to start Google sign-in: ${err.response?.data?.detail || err.message}`))}
-            className="gap-2"
-          >
-            Sign in with Bindu Google
+            {connectingBindu ? 'Loading YouTube API…' : 'Load YouTube from API'}
           </Button>
           <Button
             onClick={() => refetch()}
@@ -182,9 +157,9 @@ const CampaignIntegrationsPage = () => {
             <div>
               <h3 className="font-semibold text-blue-900">READ-ONLY Analytics Integration</h3>
               <p className="text-sm text-blue-700 mt-1">
-                YouTube loads from the Bindu channel APIs with no personal Gmail.
-                Website and Ads reports need the Bindu Google account that owns
-                property G-BCCC6B1DHX — not an outside account.
+                YouTube numbers come straight from the YouTube API. No Google sign-in.
+                Google Analytics and Google Ads block that — those APIs will not return
+                website or ad reports from the old client key alone.
               </p>
             </div>
           </div>

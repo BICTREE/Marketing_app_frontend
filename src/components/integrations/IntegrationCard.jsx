@@ -190,8 +190,8 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
       {integration.needs_reconnect && (
         <div className="mx-5 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium leading-relaxed">
           {integration.platform === 'youtube_analytics'
-            ? 'YouTube can load from the Bindu channel API without a personal Gmail. Click Use Bindu Google APIs.'
-            : 'Website and Ads reports need the Bindu Google account that owns Analytics — not a personal Gmail. Click Sign in with Bindu Google once, or Use Bindu Google APIs to attach the property IDs.'}
+            ? 'Click Load YouTube from API. This uses the YouTube channel API with no Google sign-in.'
+            : 'Google does not allow Analytics or Ads to be read with only the old OAuth client. Those APIs need a company Google token, so this card cannot show live numbers without it.'}
         </div>
       )}
 
@@ -328,7 +328,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                   onClick={(e) => { e.stopPropagation(); onConnect(integration.platform); }}
                   className="rounded-xl h-9 px-3 shrink-0 bg-black hover:bg-gray-800 text-white border-none font-bold"
                 >
-                  Reconnect
+                  Load from API
                 </Button>
               )}
               <Button 
