@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const AVAILABLE_PLATFORMS = [
   { key: 'google_analytics', name: 'Google Analytics', icon: '📊', description: 'Track website traffic and user behavior' },
+  { key: 'google_search_console', name: 'Google Search Console', icon: '🔎', description: 'Search clicks, impressions, CTR and position' },
   { key: 'google_ads', name: 'Google Ads', icon: '📣', description: 'Monitor ad performance and ROI' },
   { key: 'facebook_ads', name: 'Facebook Ads', icon: '📘', description: 'Track Facebook ad campaigns' },
   { key: 'instagram_insights', name: 'Instagram Insights', icon: '📷', description: 'Monitor Instagram engagement metrics' },
@@ -58,9 +59,27 @@ const CampaignIntegrationsPage = () => {
     },
   });
 
+  const startGoogleSignIn = async () => {
+    localStorage.removeItem('oauth_branch_id');
+    localStorage.setItem('oauth_platform', 'google_all');
+    const redirectUri = window.location.origin + '/campaigns/integrations/callback';
+    const res = await api.get('/campaigns/integrations/oauth-url/', {
+      params: { platform: 'google_all', redirect_uri: redirectUri }
+    });
+    window.location.href = res.data.url;
+  };
+
   const handleConnect = async (platform) => {
-    const googlePlatforms = ['google_analytics', 'google_ads', 'youtube_analytics', 'google_all'];
-    if (googlePlatforms.includes(platform)) {
+    const googleOauth = ['google_analytics', 'google_ads', 'google_search_console'];
+    if (googleOauth.includes(platform)) {
+      try {
+        await startGoogleSignIn();
+      } catch (err) {
+        alert(`Failed to start Google sign-in: ${err.response?.data?.detail || err.message}`);
+      }
+      return;
+    }
+    if (platform === 'youtube_analytics' || platform === 'google_all') {
       try {
         setConnectingBindu(true);
         await api.post('/campaigns/integrations/connect-bindu/');
@@ -136,7 +155,14 @@ const CampaignIntegrationsPage = () => {
             disabled={connectingBindu}
             className="gap-2 bg-black text-white hover:bg-gray-800"
           >
-            {connectingBindu ? 'Loading YouTube API…' : 'Load YouTube from API'}
+            {connectingBindu ? 'Refreshing YouTube…' : 'Refresh live YouTube'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => startGoogleSignIn().catch((err) => alert(`Failed to start Google sign-in: ${err.response?.data?.detail || err.message}`))}
+            className="gap-2"
+          >
+            Connect Analytics & Search Console
           </Button>
           <Button
             onClick={() => refetch()}
@@ -157,9 +183,9 @@ const CampaignIntegrationsPage = () => {
             <div>
               <h3 className="font-semibold text-blue-900">READ-ONLY Analytics Integration</h3>
               <p className="text-sm text-blue-700 mt-1">
-                YouTube numbers come straight from the YouTube API. No Google sign-in.
-                Google Analytics and Google Ads block that — those APIs will not return
-                website or ad reports from the old client key alone.
+                YouTube subscribers and video count load live from the Bindu channel.
+                Google Analytics and Search Console need one Connect with the Bindu Google
+                that owns G-BCCC6B1DHX — then those APIs fill this page.
               </p>
             </div>
           </div>

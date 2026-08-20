@@ -45,6 +45,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
     instagram_insights: { color: 'text-[#E4405F]', bg: 'bg-[#E4405F]/5', border: 'border-[#E4405F]/20', icon: '📷' },
     google_analytics: { color: 'text-[#34A853]', bg: 'bg-[#34A853]/5', border: 'border-[#34A853]/20', icon: '📊' },
     google_ads: { color: 'text-[#4285F4]', bg: 'bg-[#4285F4]/5', border: 'border-[#4285F4]/20', icon: '📣' },
+    google_search_console: { color: 'text-[#F4B400]', bg: 'bg-[#F4B400]/5', border: 'border-[#F4B400]/20', icon: '🔎' },
     youtube_analytics: { color: 'text-[#FF0000]', bg: 'bg-[#FF0000]/5', border: 'border-[#FF0000]/20', icon: '▶️' },
     default: { color: 'text-[#C9972A]', bg: 'bg-[#C9972A]/5', border: 'border-[#C9972A]/20', icon: '🔌' }
   };
@@ -91,7 +92,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
     queryKey: ['integration-properties', integration.id],
     queryFn: () => api.get(`/campaigns/integrations/${integration.id}/properties/`).then(res => res.data),
     enabled: integration.is_connected && (
-      integration.platform === 'google_analytics' || integration.platform === 'google_ads'
+      integration.platform === 'google_analytics' || integration.platform === 'google_ads' || integration.platform === 'google_search_console'
     ),
   });
 
@@ -158,7 +159,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                       Active Property:
                     </span>
-                    { (integration.platform === 'google_analytics' || integration.platform === 'google_ads') && properties && properties.length > 0 ? (
+                    { (integration.platform === 'google_analytics' || integration.platform === 'google_ads' || integration.platform === 'google_search_console') && properties && properties.length > 0 ? (
                       <select
                         value={integration.account_id}
                         onChange={handlePropertyChange}
@@ -190,8 +191,8 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
       {integration.needs_reconnect && (
         <div className="mx-5 mb-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-medium leading-relaxed">
           {integration.platform === 'youtube_analytics'
-            ? 'Click Load YouTube from API. This uses the YouTube channel API with no Google sign-in.'
-            : 'Google does not allow Analytics or Ads to be read with only the old OAuth client. Those APIs need a company Google token, so this card cannot show live numbers without it.'}
+            ? 'YouTube subscribers and video count refresh live from the Bindu channel. Click Refresh live YouTube.'
+            : 'Click Connect Analytics & Search Console and finish with the Bindu Google that owns the website. Then Analytics and Search Console APIs fill these cards.'}
         </div>
       )}
 
@@ -227,6 +228,13 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
               <Metric label="Total Pageviews" value={analytics?.impressions ?? 0} icon={<Eye />} colorClass="text-[#34A853]" />
               <Metric label="Engagements" value={analytics?.engagement ?? 0} icon={<Target />} colorClass="text-[#34A853]" />
               <Metric label="Conversions" value={analytics?.conversions ?? 0} icon={<TrendingUp />} colorClass="text-[#34A853]" />
+            </>
+          ) : integration.platform === 'google_search_console' ? (
+            <>
+              <Metric label="Search Clicks" value={analytics?.clicks ?? 0} icon={<MousePointer2 />} colorClass="text-[#F4B400]" />
+              <Metric label="Search Impressions" value={analytics?.impressions ?? 0} icon={<Eye />} colorClass="text-[#F4B400]" />
+              <Metric label="CTR" value={`${((analytics?.ctr ?? 0) * 100).toFixed(2)}%`} icon={<Target />} colorClass="text-[#F4B400]" />
+              <Metric label="Avg Position" value={(analytics?.avg_position ?? 0).toFixed(1)} icon={<TrendingUp />} colorClass="text-[#F4B400]" />
             </>
           ) : integration.platform === 'google_ads' ? (
             <>
@@ -328,7 +336,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                   onClick={(e) => { e.stopPropagation(); onConnect(integration.platform); }}
                   className="rounded-xl h-9 px-3 shrink-0 bg-black hover:bg-gray-800 text-white border-none font-bold"
                 >
-                  Load from API
+                  {integration.platform === 'youtube_analytics' ? 'Refresh YouTube' : 'Connect'}
                 </Button>
               )}
               <Button 
