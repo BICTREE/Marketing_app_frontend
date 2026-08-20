@@ -129,7 +129,7 @@ const DashboardLayout = () => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-[calc(100vh-65px)] md:h-screen overflow-hidden">
+      <main className="flex-1 flex flex-col min-w-0 h-[calc(100vh-65px)] md:h-screen overflow-hidden">
         {/* Top Header */}
         <header className="hidden md:flex h-16 items-center justify-end px-8 bg-card border-b border-border/50 shrink-0">
           <div className="flex items-center gap-4">
@@ -141,8 +141,8 @@ const DashboardLayout = () => {
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8">
-          <div className="max-w-7xl mx-auto">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 min-w-0">
+          <div className="max-w-7xl mx-auto w-full min-w-0">
             <Outlet />
           </div>
         </div>

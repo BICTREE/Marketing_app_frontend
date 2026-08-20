@@ -36,6 +36,11 @@ const SyncStatusBadge = ({ status, size = 'sm' }) => {
       label: 'Reconnect',
       className: 'bg-amber-50 text-amber-800 border-amber-200',
     },
+    error: {
+      icon: AlertCircle,
+      label: 'Error',
+      className: 'bg-red-50 text-red-700 border-red-200',
+    },
   };
 
   const config = statusConfig[status] || statusConfig.idle;

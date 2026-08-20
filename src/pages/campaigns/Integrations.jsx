@@ -62,10 +62,10 @@ const CampaignIntegrationsPage = () => {
     if (googlePlatforms.includes(platform)) {
       try {
         localStorage.removeItem('oauth_branch_id');
-        localStorage.setItem('oauth_platform', 'google_analytics');
+        localStorage.setItem('oauth_platform', 'google_all');
         const redirectUri = window.location.origin + '/campaigns/integrations/callback';
         const res = await api.get('/campaigns/integrations/oauth-url/', {
-          params: { platform: 'google_analytics', redirect_uri: redirectUri }
+          params: { platform: 'google_all', redirect_uri: redirectUri }
         });
         window.location.href = res.data.url;
       } catch (err) {
@@ -221,7 +221,7 @@ const CampaignIntegrationsPage = () => {
             <Loader2 className="animate-spin text-gray-400" size={32} />
           </div>
         ) : filteredIntegrations.length > 0 ? (
-          <div className="grid gap-6 grid-cols-1 xl:grid-cols-2">
+          <div className="grid gap-5 grid-cols-1 min-w-0">
             {filteredIntegrations.map((integration) => (
               <IntegrationCard
                 key={integration.id}
@@ -249,20 +249,20 @@ const CampaignIntegrationsPage = () => {
       <div>
         <h2 className="text-xl font-semibold mb-4">Available Integrations</h2>
         {filteredAvailablePlatforms.length > 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 min-w-0">
             {filteredAvailablePlatforms.map((platform) => (
               <Card 
                 key={platform.key} 
-                className="hover:shadow-md transition-shadow cursor-pointer"
+                className="hover:shadow-md transition-shadow cursor-pointer min-w-0"
                 onClick={() => handleConnect(platform.key)}
               >
                 <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="text-3xl">{platform.icon}</div>
-                    <div className="flex-1">
-                      <CardTitle className="text-base">{platform.name}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-3 min-w-0">
+                    <div className="text-3xl shrink-0">{platform.icon}</div>
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-base truncate">{platform.name}</CardTitle>
                     </div>
-                    <Button size="sm" className="gap-1">
+                    <Button size="sm" className="gap-1 shrink-0">
                       <Plus size={14} />
                       Connect
                     </Button>

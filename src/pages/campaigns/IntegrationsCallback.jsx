@@ -40,7 +40,11 @@ const IntegrationsCallback = () => {
         localStorage.removeItem('oauth_branch_id');
         localStorage.removeItem('oauth_platform');
         setConnectedPlatform(
-          platform === 'google_ads' ? 'Google Ads' : platform === 'youtube_analytics' ? 'YouTube' : 'Google Analytics'
+          platform === 'google_ads'
+            ? 'Google Ads'
+            : platform === 'youtube_analytics'
+              ? 'YouTube'
+              : 'Google Ads, Analytics, and YouTube'
         );
         
         await api.post('/campaigns/integrations/google-callback/', {

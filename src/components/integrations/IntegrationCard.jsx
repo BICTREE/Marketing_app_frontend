@@ -22,14 +22,14 @@ import { Button } from '@/components/ui/button';
 
 // Helper component for metrics
 const Metric = ({ label, value, icon: IconComponent, colorClass = "text-[#C9972A]" }) => (
-  <div className="bg-white/50 backdrop-blur-sm p-3 rounded-xl border border-gray-100 shadow-sm transition-all hover:shadow-md hover:border-primary/20">
-    <div className="flex items-center gap-2 text-gray-500 mb-1">
-      <div className={`${colorClass.replace('text', 'bg')}/10 p-1 rounded-md`}>
+  <div className="min-w-0 bg-white/50 backdrop-blur-sm p-3 rounded-xl border border-gray-100 shadow-sm transition-all hover:shadow-md hover:border-primary/20">
+    <div className="flex items-start gap-2 text-gray-500 mb-1 min-w-0">
+      <div className={`${colorClass.replace('text', 'bg')}/10 p-1 rounded-md shrink-0`}>
         {React.cloneElement(IconComponent, { size: 14, className: colorClass })}
       </div>
-      <span className="text-[10px] font-bold uppercase tracking-widest opacity-70">{label}</span>
+      <span className="text-[10px] font-bold uppercase tracking-wide leading-tight opacity-70 line-clamp-2">{label}</span>
     </div>
-    <div className={`text-xl font-black tracking-tight ${colorClass}`}>
+    <div className={`text-lg font-black tracking-tight tabular-nums truncate ${colorClass}`}>
       {typeof value === 'number' ? value.toLocaleString() : value}
     </div>
   </div>
@@ -138,9 +138,9 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
   return (
     <div 
       onClick={() => integration.is_connected && setIsExpanded(!isExpanded)}
-      className={`group relative bg-white border ${config.border} rounded-2xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-xl hover:-translate-y-1 ${integration.is_connected ? 'cursor-pointer' : ''}`}
+      className={`group relative min-w-0 w-full bg-white border ${config.border} rounded-2xl overflow-hidden shadow-sm transition-all duration-300 hover:shadow-lg ${integration.is_connected ? 'cursor-pointer' : ''}`}
     >
-      <div className={`absolute top-0 right-0 w-32 h-32 ${config.bg} rounded-full -mr-16 -mt-16 blur-3xl opacity-50 group-hover:opacity-100 transition-opacity`} />
+      <div className={`pointer-events-none absolute top-0 right-0 w-24 h-24 ${config.bg} rounded-full -mr-10 -mt-10 blur-2xl opacity-40`} />
       
       {/* Header */}
       <div className="p-5 relative">
@@ -304,8 +304,8 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
       )}
 
       {/* Footer Actions */}
-      <div className="px-4 py-3 bg-gray-50/80 border-t border-gray-100 space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="px-4 py-3 bg-gray-50/80 border-t border-gray-100 space-y-2 min-w-0">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
           {integration.is_connected ? (
             <>
               {!integration.needs_reconnect && (
@@ -314,7 +314,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                   variant="outline" 
                   onClick={handleSync}
                   disabled={syncMutation.isPending}
-                  className="rounded-xl h-9 px-3 border-gray-200 hover:bg-white"
+                  className="rounded-xl h-9 px-3 shrink-0 border-gray-200 hover:bg-white"
                 >
                   {syncMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} className="mr-1.5" />}
                   Sync
@@ -324,7 +324,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 <Button
                   size="sm"
                   onClick={(e) => { e.stopPropagation(); onConnect(integration.platform); }}
-                  className="rounded-xl h-9 px-3 bg-black hover:bg-gray-800 text-white border-none font-bold"
+                  className="rounded-xl h-9 px-3 shrink-0 bg-black hover:bg-gray-800 text-white border-none font-bold"
                 >
                   Reconnect Google
                 </Button>
@@ -333,7 +333,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 size="sm" 
                 variant="ghost" 
                 onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
-                className="rounded-xl h-9 px-3 text-gray-600 hover:bg-gray-100 font-bold text-xs gap-1 border border-gray-200"
+                className="rounded-xl h-9 px-3 shrink-0 text-gray-600 hover:bg-gray-100 font-bold text-xs gap-1 border border-gray-200"
               >
                 {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 {isExpanded ? 'Hide' : 'Details'}
@@ -342,7 +342,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                 size="sm" 
                 variant="ghost" 
                 onClick={handleDisconnect}
-                className="rounded-xl h-9 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 ml-auto"
+                className="rounded-xl h-9 px-2 shrink-0 text-red-500 hover:text-red-600 hover:bg-red-50 ml-auto"
                 title="Disconnect"
               >
                 <Unplug size={14} />
@@ -353,7 +353,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
               <Button 
                 size="sm" 
                 onClick={() => onConnect(integration.platform)}
-                className="rounded-xl h-9 px-5 bg-black hover:bg-gray-800 text-white border-none font-bold"
+                className="rounded-xl h-9 px-5 shrink-0 bg-black hover:bg-gray-800 text-white border-none font-bold"
               >
                 Connect
               </Button>
@@ -362,7 +362,7 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
                   size="sm" 
                   variant="ghost" 
                   onClick={handleRemove}
-                  className="rounded-xl h-9 px-3 text-gray-400 hover:text-red-500 hover:bg-red-50"
+                  className="rounded-xl h-9 px-3 shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50"
                 >
                   <Trash2 size={14} />
                 </Button>
