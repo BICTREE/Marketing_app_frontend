@@ -15,6 +15,7 @@ import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { snapTrailToRoads } from '@/lib/roadSnap';
 
 // Fix leaflet default icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -124,34 +125,74 @@ const SubMapRecenter = ({ points }) => {
   return null;
 };
 
-const VisitRoadmapSubMap = ({ visit }) => {
-  if (!visit) return null;
+const VisitRoadmapSubMapInner = ({ visit }) => {
+  const pathPoints = [];
+  const markerPoints = [];
 
-  const points = [];
-  if (visit.start_lat && visit.start_lng) points.push({ type: 'start', lat: parseFloat(visit.start_lat), lng: parseFloat(visit.start_lng), label: '🏁 Start Point' });
-  
-  if (visit.checkins && visit.checkins.length > 0) {
+  if (visit.start_lat && visit.start_lng) {
+    const p = { type: 'start', lat: parseFloat(visit.start_lat), lng: parseFloat(visit.start_lng), label: '🏁 Start Point', time: visit.started_at };
+    pathPoints.push(p);
+    markerPoints.push(p);
+  }
+
+  if (visit.checkins?.length) {
     visit.checkins.forEach((c, idx) => {
       if (c.lat && c.lng) {
-        points.push({ type: 'checkin', lat: parseFloat(c.lat), lng: parseFloat(c.lng), label: `📍 Check-in #${idx + 1}`, time: c.timestamp });
+        const p = { type: 'checkin', lat: parseFloat(c.lat), lng: parseFloat(c.lng), label: `📍 Check-in #${idx + 1}`, time: c.timestamp };
+        pathPoints.push(p);
+        markerPoints.push(p);
       }
     });
   }
 
-  if (visit.location_updates && visit.location_updates.length > 0) {
-    visit.location_updates.forEach((lu, idx) => {
+  if (visit.location_updates?.length) {
+    visit.location_updates.forEach((lu) => {
       if (lu.latitude && lu.longitude) {
-        points.push({ type: 'ping', lat: parseFloat(lu.latitude), lng: parseFloat(lu.longitude), time: lu.timestamp });
+        pathPoints.push({ type: 'ping', lat: parseFloat(lu.latitude), lng: parseFloat(lu.longitude), time: lu.timestamp });
       }
     });
   }
 
-  if (visit.end_lat && visit.end_lng) points.push({ type: 'end', lat: parseFloat(visit.end_lat), lng: parseFloat(visit.end_lng), label: '🔴 End Location' });
-  if (visit.lead_lat && visit.lead_lng) points.push({ type: 'lead', lat: parseFloat(visit.lead_lat), lng: parseFloat(visit.lead_lng), label: `🎯 Lead: ${visit.lead_name || 'Client'}` });
+  if (visit.end_lat && visit.end_lng) {
+    const p = { type: 'end', lat: parseFloat(visit.end_lat), lng: parseFloat(visit.end_lng), label: '🔴 End Location', time: visit.ended_at };
+    pathPoints.push(p);
+    markerPoints.push(p);
+  }
 
-  const latLngList = points.map(p => [p.lat, p.lng]);
+  // Lead is destination only — never stretch the driven path as a straight line to the client.
+  if (visit.lead_lat && visit.lead_lng) {
+    markerPoints.push({
+      type: 'lead',
+      lat: parseFloat(visit.lead_lat),
+      lng: parseFloat(visit.lead_lng),
+      label: `🎯 Lead: ${visit.lead_name || 'Client'}`,
+    });
+  }
 
-  if (latLngList.length === 0) {
+  pathPoints.sort((a, b) => {
+    const ta = a.time ? new Date(a.time).getTime() : 0;
+    const tb = b.time ? new Date(b.time).getTime() : 0;
+    return ta - tb;
+  });
+
+  const rawLatLng = pathPoints.map((p) => [p.lat, p.lng]);
+  const [routeLatLng, setRouteLatLng] = useState(rawLatLng);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (rawLatLng.length < 2) {
+      setRouteLatLng(rawLatLng);
+      return undefined;
+    }
+    snapTrailToRoads(rawLatLng).then((snapped) => {
+      if (!cancelled) setRouteLatLng(snapped);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visit?.id, visit?.location_updates?.length, visit?.checkins?.length, rawLatLng.length]);
+
+  const fitPoints = [...routeLatLng, ...markerPoints.map((p) => [p.lat, p.lng])];
+  if (fitPoints.length === 0) {
     return (
       <div className="p-3 bg-muted/20 border border-dashed border-border/60 rounded-xl text-center text-xs text-muted-foreground">
         🗺️ No GPS coordinates recorded for this visit yet.
@@ -159,7 +200,8 @@ const VisitRoadmapSubMap = ({ visit }) => {
     );
   }
 
-  const center = latLngList[0];
+  const center = fitPoints[0];
+  const arrowStep = Math.max(1, Math.floor((routeLatLng.length - 1) / 12));
 
   return (
     <div className="space-y-2">
@@ -168,69 +210,31 @@ const VisitRoadmapSubMap = ({ visit }) => {
           <Navigation size={15} className="text-[#C9972A]" /> Visit GPS Journey Roadmap
         </h3>
         <span className="text-[11px] font-bold text-[#0F6E56] bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-          {latLngList.length} GPS Points Recorded
+          {pathPoints.length} GPS points · road-matched
         </span>
       </div>
-      
+
       <div className="h-[220px] w-full rounded-xl overflow-hidden border border-border/80 shadow-sm relative z-0">
-        <MapContainer
-          center={center}
-          zoom={14}
-          style={{ height: '100%', width: '100%', zIndex: 0 }}
-        >
-          <TileLayer
-            attribution='&copy; OpenStreetMap'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+        <MapContainer center={center} zoom={14} style={{ height: '100%', width: '100%', zIndex: 0 }}>
+          <TileLayer attribution="&copy; OpenStreetMap" url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <SubMapRecenter points={fitPoints} />
 
-          <SubMapRecenter points={latLngList} />
-
-          {/* Polyline Route Trail with Casing & Motion */}
-          {latLngList.length > 1 && (
+          {routeLatLng.length > 1 && (
             <React.Fragment>
-              {/* Outer Dark Casing */}
-              <Polyline
-                positions={latLngList}
-                color="#1E293B"
-                weight={8}
-                opacity={0.65}
-              />
-              {/* Main Navigation Blue Line */}
-              <Polyline
-                positions={latLngList}
-                color="#2563EB"
-                weight={4}
-                opacity={0.95}
-              />
-              {/* White Motion Dash */}
-              <Polyline
-                positions={latLngList}
-                color="#FFFFFF"
-                weight={2}
-                dashArray="6, 12"
-                opacity={0.8}
-              />
-              {/* Directional Arrows Along Segments */}
-              {latLngList.slice(0, -1).map((pt, idx) => {
-                const nextPt = latLngList[idx + 1];
-                const midLat = (pt[0] + nextPt[0]) / 2;
-                const midLng = (pt[1] + nextPt[1]) / 2;
+              <Polyline positions={routeLatLng} color="#1E293B" weight={8} opacity={0.65} />
+              <Polyline positions={routeLatLng} color="#2563EB" weight={4} opacity={0.95} />
+              <Polyline positions={routeLatLng} color="#FFFFFF" weight={2} dashArray="6, 12" opacity={0.8} />
+              {routeLatLng.slice(0, -1).map((pt, idx) => {
+                if (idx % arrowStep !== 0) return null;
+                const nextPt = routeLatLng[idx + 1];
                 const angle = getBearing(pt[0], pt[1], nextPt[0], nextPt[1]);
                 return (
                   <Marker
                     key={`sub-arrow-${idx}`}
-                    position={[midLat, midLng]}
+                    position={[(pt[0] + nextPt[0]) / 2, (pt[1] + nextPt[1]) / 2]}
                     icon={L.divIcon({
                       className: 'route-direction-arrow',
-                      html: `<div style="
-                        transform: rotate(${angle}deg);
-                        color: #10B981;
-                        font-size: 13px;
-                        font-weight: 900;
-                        line-height: 1;
-                        filter: drop-shadow(0px 1px 2px rgba(0,0,0,0.7));
-                        display:flex;align-items:center;justify-content:center;
-                      ">▲</div>`,
+                      html: `<div style="transform: rotate(${angle}deg);color:#10B981;font-size:13px;font-weight:900;line-height:1;filter:drop-shadow(0px 1px 2px rgba(0,0,0,0.7));display:flex;align-items:center;justify-content:center;">▲</div>`,
                       iconSize: [16, 16],
                       iconAnchor: [8, 8],
                     })}
@@ -240,25 +244,21 @@ const VisitRoadmapSubMap = ({ visit }) => {
             </React.Fragment>
           )}
 
-          {/* Start Pin */}
           {visit.start_lat && visit.start_lng && (
             <Marker
               position={[parseFloat(visit.start_lat), parseFloat(visit.start_lng)]}
               icon={L.divIcon({
                 className: '',
-                html: `<div style="display:flex;flex-direction:column;align-items:center;width:70px;">
-                  <div style="background:#10B981;color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🏁 Start</div>
-                </div>`,
+                html: `<div style="display:flex;flex-direction:column;align-items:center;width:70px;"><div style="background:#10B981;color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🏁 Start</div></div>`,
                 iconSize: [70, 24],
                 iconAnchor: [35, 12],
-                popupAnchor: [0, -12]
+                popupAnchor: [0, -12],
               })}
             >
-              <Popup><strong>🏁 Start Location</strong><br/>{Number(visit.start_lat).toFixed(6)}, {Number(visit.start_lng).toFixed(6)}</Popup>
+              <Popup><strong>🏁 Start Location</strong><br />{Number(visit.start_lat).toFixed(6)}, {Number(visit.start_lng).toFixed(6)}</Popup>
             </Marker>
           )}
 
-          {/* Checkin Waypoints */}
           {visit.checkins?.map((c, idx) => (
             c.lat && c.lng && (
               <Marker
@@ -269,53 +269,52 @@ const VisitRoadmapSubMap = ({ visit }) => {
                   html: `<div style="width:18px;height:18px;background:#8B5CF6;color:#fff;border-radius:50%;border:2px solid #fff;font-size:8px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.3);">${idx + 1}</div>`,
                   iconSize: [18, 18],
                   iconAnchor: [9, 9],
-                  popupAnchor: [0, -9]
+                  popupAnchor: [0, -9],
                 })}
               >
-                <Popup><strong>📍 Check-in #{idx + 1}</strong><br/>{c.timestamp ? new Date(c.timestamp).toLocaleTimeString() : ''}</Popup>
+                <Popup><strong>📍 Check-in #{idx + 1}</strong><br />{c.timestamp ? new Date(c.timestamp).toLocaleTimeString() : ''}</Popup>
               </Marker>
             )
           ))}
 
-          {/* End Pin */}
           {visit.end_lat && visit.end_lng && (
             <Marker
               position={[parseFloat(visit.end_lat), parseFloat(visit.end_lng)]}
               icon={L.divIcon({
                 className: '',
-                html: `<div style="display:flex;flex-direction:column;align-items:center;width:70px;">
-                  <div style="background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🔴 End</div>
-                </div>`,
+                html: `<div style="display:flex;flex-direction:column;align-items:center;width:70px;"><div style="background:#EF4444;color:#fff;font-size:9px;font-weight:800;padding:2px 6px;border-radius:10px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🔴 End</div></div>`,
                 iconSize: [70, 24],
                 iconAnchor: [35, 12],
-                popupAnchor: [0, -12]
+                popupAnchor: [0, -12],
               })}
             >
-              <Popup><strong>🔴 End Location</strong><br/>{Number(visit.end_lat).toFixed(6)}, {Number(visit.end_lng).toFixed(6)}</Popup>
+              <Popup><strong>🔴 End Location</strong><br />{Number(visit.end_lat).toFixed(6)}, {Number(visit.end_lng).toFixed(6)}</Popup>
             </Marker>
           )}
 
-          {/* Client Destination Pin */}
           {visit.lead_lat && visit.lead_lng && (
             <Marker
               position={[parseFloat(visit.lead_lat), parseFloat(visit.lead_lng)]}
               icon={L.divIcon({
                 className: '',
-                html: `<div style="display:flex;flex-direction:column;align-items:center;width:100px;">
-                  <div style="background:#1A5490;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🎯 ${visit.lead_name || 'Client'}</div>
-                </div>`,
+                html: `<div style="display:flex;flex-direction:column;align-items:center;width:100px;"><div style="background:#1A5490;color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3);">🎯 ${visit.lead_name || 'Client'}</div></div>`,
                 iconSize: [100, 24],
                 iconAnchor: [50, 12],
-                popupAnchor: [0, -12]
+                popupAnchor: [0, -12],
               })}
             >
-              <Popup><strong>🎯 Destination Client</strong><br/>{visit.lead_name}<br/>{visit.lead_phone}</Popup>
+              <Popup><strong>🎯 Destination Client</strong><br />{visit.lead_name}<br />{visit.lead_phone}</Popup>
             </Marker>
           )}
         </MapContainer>
       </div>
     </div>
   );
+};
+
+const VisitRoadmapSubMap = ({ visit }) => {
+  if (!visit) return null;
+  return <VisitRoadmapSubMapInner visit={visit} />;
 };
 
 const FieldVisitsPage = () => {
@@ -538,6 +537,29 @@ const FieldVisitsPage = () => {
     },
     enabled: selectedTrackedStaff !== 'all'
   });
+
+  const rawStaffTrailPoints = React.useMemo(() => {
+    if (!staffLocationTrail?.length) return [];
+    return staffLocationTrail
+      .map((pt) => [parseFloat(pt.latitude), parseFloat(pt.longitude)])
+      .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  }, [staffLocationTrail]);
+
+  const [snappedStaffTrail, setSnappedStaffTrail] = useState([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (rawStaffTrailPoints.length < 2) {
+      setSnappedStaffTrail(rawStaffTrailPoints);
+      return undefined;
+    }
+    // Show raw trail immediately, then replace with road-matched geometry.
+    setSnappedStaffTrail(rawStaffTrailPoints);
+    snapTrailToRoads(rawStaffTrailPoints).then((snapped) => {
+      if (!cancelled && snapped?.length >= 2) setSnappedStaffTrail(snapped);
+    });
+    return () => { cancelled = true; };
+  }, [selectedTrackedStaff, rawStaffTrailPoints]);
 
   const checkInMutation = useMutation({
     mutationFn: ({ id, data }) => api.post(`/field-visits/field-visits/${id}/check-in/`, data),
@@ -1396,8 +1418,10 @@ const FieldVisitsPage = () => {
                 {/* ── 1. SELECTED STAFF DAILY ROADMAP POLYLINE TRAIL (Controlled by Toggle) ── */}
                 {showStaffPins && selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 1 && (() => {
                   const TRAIL_COLORS = ['#10B981', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444'];
-                  const trailPoints = staffLocationTrail.map(pt => [parseFloat(pt.latitude), parseFloat(pt.longitude)]);
+                  // Road-snapped geometry for the line; raw GPS samples stay as waypoint markers.
+                  const trailPoints = (snappedStaffTrail?.length > 1 ? snappedStaffTrail : rawStaffTrailPoints);
                   const segmentSize = Math.max(1, Math.ceil(trailPoints.length / TRAIL_COLORS.length));
+                  const arrowStep = Math.max(1, Math.floor((trailPoints.length - 1) / 18));
                   
                   return (
                     <React.Fragment>
@@ -1431,8 +1455,9 @@ const FieldVisitsPage = () => {
                         dashArray="8, 14"
                         opacity={0.85}
                       />
-                      {/* Directional Movement Arrows */}
+                      {/* Directional Movement Arrows (sampled — road-matched trails are dense) */}
                       {trailPoints.slice(0, -1).map((pt, idx) => {
+                        if (idx % arrowStep !== 0) return null;
                         const nextPt = trailPoints[idx + 1];
                         const midLat = (pt[0] + nextPt[0]) / 2;
                         const midLng = (pt[1] + nextPt[1]) / 2;
