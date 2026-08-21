@@ -35,6 +35,20 @@ const safeFormat = (dateStr, formatStr, fallback = '—') => {
   }
 };
 
+const escapeHtml = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const staffPhotoUrl = (loc) => loc?.photo || loc?.attendance_photo || loc?.staff_avatar || '';
+
+const localYmd = (value) => {
+  const d = value instanceof Date ? value : new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 // Mirrors field_visits/liveness.py so the map and the API never disagree about
 // who is online. A marker is only green when a fix actually arrived recently.
 const LIVE_MAX_AGE_SECONDS = 90;
@@ -317,6 +331,9 @@ const FieldVisitsPage = () => {
   const [selectedStaff, setSelectedStaff] = useState('all');
   const [selectedTrackedStaff, setSelectedTrackedStaff] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [visitDateRange, setVisitDateRange] = useState('all');
+  const [visitStartDate, setVisitStartDate] = useState('');
+  const [visitEndDate, setVisitEndDate] = useState('');
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [assignForm, setAssignForm] = useState({ lead: '', staff: '', notes: '', scheduled_date: '' });
   const [userLocation, setUserLocation] = useState(null);
@@ -343,18 +360,21 @@ const FieldVisitsPage = () => {
   });
   
   const { data: visitsData, isLoading } = useQuery({
-    queryKey: ['fieldvisits', selectedBranch, selectedStaff, statusFilter],
+    queryKey: ['fieldvisits', selectedBranch, selectedStaff, statusFilter, visitDateRange, visitStartDate, visitEndDate],
     queryFn: () => {
+      const params = new URLSearchParams();
       if (canManageVisits) {
-        const params = new URLSearchParams();
         if (selectedBranch !== 'all') params.set('branch', selectedBranch);
         if (selectedStaff !== 'all') params.set('staff', selectedStaff);
         if (statusFilter !== 'all') params.set('status', statusFilter);
-        const qs = params.toString();
-        return api.get(`/field-visits/field-visits/${qs ? '?' + qs : ''}`).then(res => res.data.results || res.data);
-      } else {
-        return api.get(`/field-visits/field-visits/?staff=${user?.id}`).then(res => res.data.results || res.data);
+      } else if (user?.id) {
+        params.set('staff', user.id);
       }
+      if (visitDateRange !== 'all') params.set('time_range', visitDateRange);
+      if (visitDateRange === 'custom' && visitStartDate) params.set('start_date', visitStartDate);
+      if (visitDateRange === 'custom' && visitEndDate) params.set('end_date', visitEndDate);
+      const qs = params.toString();
+      return api.get(`/field-visits/field-visits/${qs ? '?' + qs : ''}`).then(res => res.data.results || res.data);
     }
   });
 
@@ -813,6 +833,47 @@ const FieldVisitsPage = () => {
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
               </select>
+
+              <select
+                value={visitDateRange}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setVisitDateRange(value);
+                  if (value === 'custom' && (!visitStartDate || !visitEndDate)) {
+                    const end = new Date();
+                    const start = new Date();
+                    start.setDate(end.getDate() - 7);
+                    setVisitStartDate(localYmd(start));
+                    setVisitEndDate(localYmd(end));
+                  }
+                }}
+                className="px-3 py-2 border rounded-md bg-background text-sm"
+              >
+                <option value="all">All Dates</option>
+                <option value="today">Today</option>
+                <option value="week">Last 7 Days</option>
+                <option value="month">Last 30 Days</option>
+                <option value="custom">Custom Range</option>
+              </select>
+              {visitDateRange === 'custom' && (
+                <>
+                  <input
+                    type="date"
+                    value={visitStartDate}
+                    max={visitEndDate || localYmd(new Date())}
+                    onChange={(e) => setVisitStartDate(e.target.value)}
+                    className="px-3 py-2 border rounded-md bg-background text-sm"
+                  />
+                  <input
+                    type="date"
+                    value={visitEndDate}
+                    min={visitStartDate || undefined}
+                    max={localYmd(new Date())}
+                    onChange={(e) => setVisitEndDate(e.target.value)}
+                    className="px-3 py-2 border rounded-md bg-background text-sm"
+                  />
+                </>
+              )}
             </div>
           )}
           <div className="flex gap-2">
@@ -1131,6 +1192,56 @@ const FieldVisitsPage = () => {
               <span className="ml-auto font-semibold">
                 {staffLocationTrail.length} GPS pings recorded
               </span>
+            </div>
+          )}
+
+          {activeLiveTracking.length > 0 && (
+            <div className="px-4 py-3 bg-slate-50/80 border-b border-border/40 overflow-x-auto">
+              <div className="flex items-center gap-3 min-w-max">
+                {activeLiveTracking.map((loc) => {
+                  const style = GPS_STATUS_STYLES[loc.gps_status] || GPS_STATUS_STYLES.offline;
+                  const photo = staffPhotoUrl(loc);
+                  const selected = String(selectedTrackedStaff) === String(loc.staff_id);
+                  return (
+                    <button
+                      key={loc.staff_id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedTrackedStaff(String(loc.staff_id));
+                        setSelectedStaff(String(loc.staff_id));
+                        if (loc.latitude && loc.longitude) {
+                          setFocusedLocation({ lat: Number(loc.latitude), lng: Number(loc.longitude), zoom: 16 });
+                        }
+                      }}
+                      className={`flex items-center gap-3 min-w-[260px] max-w-[320px] text-left rounded-xl border bg-white p-2.5 shadow-sm transition-all ${
+                        selected ? 'border-emerald-500 ring-2 ring-emerald-100' : 'border-border/70 hover:border-emerald-300'
+                      }`}
+                    >
+                      <div className="relative shrink-0">
+                        {photo ? (
+                          <img src={photo} alt={loc.staff_name} className="h-14 w-14 rounded-full object-cover border-2" style={{ borderColor: style.color }} />
+                        ) : (
+                          <div className="h-14 w-14 rounded-full flex items-center justify-center text-white font-bold text-lg border-2" style={{ background: style.color, borderColor: '#fff' }}>
+                            {(loc.staff_name || '?')[0].toUpperCase()}
+                          </div>
+                        )}
+                        <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white" style={{ background: style.color }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-foreground truncate">{loc.staff_name}</p>
+                        <p className="text-[10px] font-semibold" style={{ color: style.color }}>{style.label}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">
+                          {loc.lead_name ? `Visiting ${loc.lead_name}` : loc.branch_name || 'No active visit'}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground truncate">
+                          {loc.staff_phone ? `☎ ${loc.staff_phone}` : ''}
+                          {loc.battery_level != null ? ` · ${Math.round(loc.battery_level)}% battery` : ''}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           )}
 
@@ -1510,8 +1621,12 @@ const FieldVisitsPage = () => {
                   const isGpsOff = loc.gps_status === 'gps_off';
                   const isOffline = loc.gps_status === 'offline';
                   const firstName = (loc.staff_name || 'Staff').split(' ')[0];
-
+                  const photo = staffPhotoUrl(loc);
+                  const initial = (loc.staff_name || '?')[0].toUpperCase();
                   const opacity = isLive ? 1 : loc.gps_status === 'delayed' ? 0.85 : isGpsOff ? 0.6 : 0.45;
+                  const photoHtml = photo
+                    ? `<img src="${escapeHtml(photo)}" alt="" style="width:36px;height:36px;border-radius:50%;border:3px solid ${color};object-fit:cover;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.35)${isLive ? `, 0 0 0 5px ${style.ring}` : ''};margin-top:2px;" />`
+                    : `<div style="width:36px;height:36px;border-radius:50%;background:${color};color:#fff;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.35)${isLive ? `, 0 0 0 5px ${style.ring}` : ''};margin-top:2px;">${escapeHtml(initial)}</div>`;
 
                   return (
                     <Marker
@@ -1521,37 +1636,39 @@ const FieldVisitsPage = () => {
                       icon={L.divIcon({
                         className: 'custom-staff-marker',
                         html: `
-                          <div style="display:flex;flex-direction:column;align-items:center;width:130px;opacity:${opacity};">
+                          <div style="display:flex;flex-direction:column;align-items:center;width:140px;opacity:${opacity};">
                             <div style="
                               background:${color};color:#fff;font-size:10px;font-weight:700;
                               padding:3px 8px;border-radius:12px;white-space:nowrap;
                               box-shadow:0 2px 8px rgba(0,0,0,0.3);letter-spacing:0.3px;
                               border:2px solid #fff;
-                            ">${firstName} · ${style.label}</div>
-                            <div style="
-                              width:14px;height:14px;background:${color};border-radius:50%;
-                              border:3px solid #fff;
-                              box-shadow:0 2px 6px rgba(0,0,0,0.35)${isLive ? `, 0 0 0 6px ${style.ring}` : ''};
-                              margin-top:2px;
-                            "></div>
+                            ">${escapeHtml(firstName)} · ${escapeHtml(style.label)}</div>
+                            ${photoHtml}
                           </div>
                         `,
-                        iconSize: [130, 44],
-                        iconAnchor: [65, 44],
-                        popupAnchor: [0, -44]
+                        iconSize: [140, 64],
+                        iconAnchor: [70, 64],
+                        popupAnchor: [0, -64]
                       })}
                     >
-                      <Popup maxWidth={260}>
-                        <div style={{ minWidth: 220, fontFamily: 'system-ui' }}>
-                          <div style={{ background: color, color: '#fff', padding: '8px 12px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>
-                              {(loc.staff_name || '?')[0].toUpperCase()}
-                            </div>
-                            <div>
-                              <strong style={{ fontSize: 13, display: 'block' }}>{loc.staff_name}</strong>
-                              <span style={{ fontSize: 10, opacity: 0.9 }}>{style.label}</span>
+                      <Popup maxWidth={320} minWidth={260}>
+                        <div style={{ minWidth: 240, fontFamily: 'system-ui' }}>
+                          <div style={{ background: color, color: '#fff', padding: '10px 12px', margin: '-5px -20px 10px', borderRadius: '4px 4px 0 0', display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {photo ? (
+                              <img src={photo} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', border: '2px solid #fff' }} />
+                            ) : (
+                              <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 16 }}>
+                                {initial}
+                              </div>
+                            )}
+                            <div style={{ minWidth: 0 }}>
+                              <strong style={{ fontSize: 14, display: 'block' }}>{loc.staff_name}</strong>
+                              <span style={{ fontSize: 11, opacity: 0.95 }}>{style.label}{loc.staff_role ? ` · ${loc.staff_role}` : ''}</span>
                             </div>
                           </div>
+                          {photo && (
+                            <img src={photo} alt={loc.staff_name} style={{ width: '100%', height: 140, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+                          )}
                           {!isLive && (
                             <p style={{ fontSize: 11, margin: '4px 0', padding: '5px 7px', borderRadius: 5, background: '#FEF3C7', color: '#92400E', fontWeight: 600 }}>
                               {loc.gps_status === 'gps_off'
@@ -1559,7 +1676,12 @@ const FieldVisitsPage = () => {
                                 : `No update for ${formatAgo(loc.seconds_ago)}. This is their last known position.`}
                             </p>
                           )}
+                          {loc.branch_name && <p style={{ fontSize: 12, margin: '4px 0' }}>🏢 <strong>Branch:</strong> {loc.branch_name}</p>}
+                          {loc.staff_phone && <p style={{ fontSize: 12, margin: '4px 0' }}>📞 <strong>Phone:</strong> {loc.staff_phone}</p>}
                           {loc.lead_name && <p style={{ fontSize: 12, margin: '4px 0' }}>📍 <strong>Visiting:</strong> {loc.lead_name}</p>}
+                          {loc.lead_phone && <p style={{ fontSize: 11, color: '#555', margin: '2px 0' }}>☎ Customer: {loc.lead_phone}</p>}
+                          {loc.lead_address && <p style={{ fontSize: 11, color: '#555', margin: '2px 0' }}>🏠 {loc.lead_address}</p>}
+                          {loc.visit_notes && <p style={{ fontSize: 11, color: '#555', margin: '2px 0', fontStyle: 'italic' }}>📝 {loc.visit_notes}</p>}
                           <p style={{ fontSize: 11, color: '#666', margin: '4px 0' }}>
                             🕐 <strong>Updated:</strong> {new Date(loc.timestamp).toLocaleTimeString()} ({formatAgo(loc.seconds_ago)})
                           </p>
@@ -1569,6 +1691,11 @@ const FieldVisitsPage = () => {
                             <p style={{ fontSize: 10, color: '#9CA3AF', margin: '2px 0' }}>📡 GPS accuracy not reported</p>
                           )}
                           {loc.speed > 0 && <p style={{ fontSize: 10, color: '#0F6E56', margin: '2px 0', fontWeight: 700 }}>🚗 Speed: {(loc.speed * 3.6).toFixed(1)} km/h</p>}
+                          {loc.battery_level != null && (
+                            <p style={{ fontSize: 10, color: loc.battery_level < 20 ? '#B91C1C' : '#4B5563', margin: '2px 0', fontWeight: 600 }}>
+                              🔋 Battery: {Math.round(loc.battery_level)}%
+                            </p>
+                          )}
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             <a
                               href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
@@ -1911,24 +2038,23 @@ const FieldVisitsPage = () => {
                 
                 <div>
                   <h3 className="text-lg font-semibold mb-2">Staff Information</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      <span className="text-sm font-medium">Staff:</span>
-                      <span className="text-sm">{selectedVisit.staff_name || 'Unknown'}</span>
+                  <div className="flex items-start gap-3 mb-3">
+                    {selectedVisit.staff_avatar ? (
+                      <img src={selectedVisit.staff_avatar} alt={selectedVisit.staff_name} className="h-16 w-16 rounded-full object-cover border-2 border-[#0F6E56]" />
+                    ) : (
+                      <div className="h-16 w-16 rounded-full bg-[#0F6E56] text-white flex items-center justify-center text-xl font-bold">
+                        {(selectedVisit.staff_name || '?')[0].toUpperCase()}
+                      </div>
+                    )}
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold">{selectedVisit.staff_name || 'Unknown'}</p>
+                      {selectedVisit.staff_phone && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> {selectedVisit.staff_phone}</p>
+                      )}
+                      {selectedVisit.staff_email && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> {selectedVisit.staff_email}</p>
+                      )}
                     </div>
-                    {selectedVisit.staff_phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        <span className="text-sm">{selectedVisit.staff_phone}</span>
-                      </div>
-                    )}
-                    {selectedVisit.staff_email && (
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4" />
-                        <span className="text-sm">{selectedVisit.staff_email}</span>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1952,6 +2078,12 @@ const FieldVisitsPage = () => {
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4" />
                       <span className="text-sm">{selectedVisit.lead_email}</span>
+                    </div>
+                  )}
+                  {selectedVisit.lead_address && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4" />
+                      <span className="text-sm">{selectedVisit.lead_address}</span>
                     </div>
                   )}
                 </div>
@@ -2005,6 +2137,33 @@ const FieldVisitsPage = () => {
                 <div>
                   <h3 className="text-lg font-semibold mb-2">Notes</h3>
                   <p className="text-sm text-gray-600">{selectedVisit.notes}</p>
+                </div>
+              )}
+
+              {Array.isArray(selectedVisit.checkins) && selectedVisit.checkins.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">GPS Check-ins</h3>
+                  <div className="space-y-2">
+                    {selectedVisit.checkins.map((checkin) => (
+                      <div key={checkin.id} className="text-xs rounded-lg border p-2 bg-muted/20 flex items-center justify-between gap-2">
+                        <span>{safeFormat(checkin.timestamp, 'MMM dd, hh:mm a')}</span>
+                        <span className="text-muted-foreground">
+                          {checkin.lat && checkin.lng ? `${Number(checkin.lat).toFixed(5)}, ${Number(checkin.lng).toFixed(5)}` : 'No coordinates'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedVisit.report && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-2">Visit Report</h3>
+                  <p className="text-sm"><strong>Outcome:</strong> {selectedVisit.report.outcome_display || selectedVisit.report.outcome}</p>
+                  {selectedVisit.report.time_spent_minutes != null && (
+                    <p className="text-sm text-muted-foreground">{selectedVisit.report.time_spent_minutes} minutes on site</p>
+                  )}
+                  {selectedVisit.report.notes && <p className="text-sm mt-1">{selectedVisit.report.notes}</p>}
                 </div>
               )}
             </div>

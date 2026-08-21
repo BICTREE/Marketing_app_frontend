@@ -30,8 +30,20 @@ import { LeadsSourceWidget, SOURCE_META } from '@/components/dashboard/LeadsSour
 
 const COLORS = ['#C9972A', '#0F6E56', '#1A5490', '#8B5CF6', '#F59E0B', '#EF4444'];
 
-// SOURCE_META is now imported from LeadsSourceWidget
+const localYmd = (value) => {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
+const daysAgoYmd = (days) => {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return localYmd(d);
+};
+
+const defaultCustomRange = () => ({ start: daysAgoYmd(7), end: localYmd(new Date()) });
 
 // Today's Leads Panel (Pipeline Snapshot)
 const TodayLeadsPanel = ({ leads, dateRange }) => {
@@ -48,9 +60,10 @@ const TodayLeadsPanel = ({ leads, dateRange }) => {
   const delta = todayLeads.length - yesterdayLeads.length;
   
   // Dynamic Title based on filter
-  const title = dateRange === 'all' ? 'Pipeline Snapshot' : 
-                dateRange === 'today' ? 'Today\'s Activity' : 
-                dateRange === 'week' ? 'Weekly Overview' : 'Monthly Performance';
+  const title = dateRange === 'all' ? 'Pipeline Snapshot' :
+                dateRange === 'today' ? 'Today\'s Activity' :
+                dateRange === 'week' ? 'Weekly Overview' :
+                dateRange === 'custom' ? 'Selected Period' : 'Monthly Performance';
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-6">
@@ -138,8 +151,23 @@ const AdminDashboard = () => {
   const [customEndDate, setCustomEndDate] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
+  const customDatesReady = dateRange !== 'custom' || Boolean(customStartDate && customEndDate);
+
+  const applyDateRange = (value) => {
+    setDateRange(value);
+    if (value === 'custom') {
+      setShowAdvancedFilters(true);
+      if (!customStartDate || !customEndDate) {
+        const { start, end } = defaultCustomRange();
+        setCustomStartDate(start);
+        setCustomEndDate(end);
+      }
+    }
+  };
+
   const { data: leadsResponse, isLoading: loadingLeads,    refetch: refetchLeads }    = useQuery({ 
     queryKey: ['admin-leads', selectedBranch, selectedSource, selectedSegment, selectedStaff, selectedCampaign, dateRange, customStartDate, customEndDate], 
+    enabled: customDatesReady,
     queryFn: () => api.get('/leads/leads/', { 
       params: { 
         branch: selectedBranch !== 'all' ? selectedBranch : undefined, 
@@ -147,7 +175,7 @@ const AdminDashboard = () => {
         segment: selectedSegment !== 'all' ? selectedSegment : undefined, 
         assigned_to: selectedStaff !== 'all' ? selectedStaff : undefined, 
         campaign: selectedCampaign !== 'all' ? selectedCampaign : undefined, 
-        time_range: dateRange !== 'all' ? dateRange : undefined,
+        time_range: dateRange !== 'all' && customDatesReady ? dateRange : undefined,
         start_date: dateRange === 'custom' ? customStartDate : undefined,
         end_date: dateRange === 'custom' ? customEndDate : undefined,
         page_size: 1000 
@@ -157,11 +185,12 @@ const AdminDashboard = () => {
 
   const { data: salesResponse, isLoading: loadingSales,    refetch: refetchSales }    = useQuery({ 
     queryKey: ['admin-sales', selectedBranch, selectedStaff, dateRange, customStartDate, customEndDate], 
+    enabled: customDatesReady,
     queryFn: () => api.get('/sales/sales/', { 
       params: { 
         branch: selectedBranch !== 'all' ? selectedBranch : undefined, 
         staff: selectedStaff !== 'all' ? selectedStaff : undefined, 
-        time_range: dateRange !== 'all' ? dateRange : undefined,
+        time_range: dateRange !== 'all' && customDatesReady ? dateRange : undefined,
         start_date: dateRange === 'custom' ? customStartDate : undefined,
         end_date: dateRange === 'custom' ? customEndDate : undefined,
         page_size: 1000 
@@ -175,8 +204,6 @@ const AdminDashboard = () => {
 
   const leadsData = leadsResponse?.results || [];
   const salesData = salesResponse?.results || [];
-  const totalLeadsCountFromServer = leadsResponse?.count || 0;
-  const totalSalesCountFromServer = salesResponse?.count || 0;
 
   const isLoading = loadingLeads || loadingSales || loadingCampaigns || loadingTeam;
 
@@ -185,32 +212,20 @@ const AdminDashboard = () => {
     setLastRefresh(new Date());
   };
 
-  // Helper to check if date is within range
+  // Compare calendar dates in local time so custom ranges are not shifted by UTC.
   const isWithinDateRange = (dateStr) => {
     if (dateRange === 'all') return true;
-    const date = new Date(dateStr);
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
-    if (dateRange === 'today') {
-      return date >= today;
-    } else if (dateRange === 'week') {
-      const weekAgo = new Date(today);
-      weekAgo.setDate(today.getDate() - 7);
-      return date >= weekAgo;
-    } else if (dateRange === 'month') {
-      const monthAgo = new Date(today);
-      monthAgo.setMonth(today.getMonth() - 1);
-      return date >= monthAgo;
-    } else if (dateRange === 'custom') {
-      const start = customStartDate ? new Date(customStartDate) : null;
-      const end = customEndDate ? new Date(customEndDate) : null;
-      if (start) start.setHours(0,0,0,0);
-      if (end) end.setHours(23,59,59,999);
-      
-      if (start && end) return date >= start && date <= end;
-      if (start) return date >= start;
-      if (end) return date <= end;
+    const day = localYmd(dateStr);
+    if (!day) return true;
+    const today = localYmd(new Date());
+
+    if (dateRange === 'today') return day === today;
+    if (dateRange === 'week') return day >= daysAgoYmd(7) && day <= today;
+    if (dateRange === 'month') return day >= daysAgoYmd(30) && day <= today;
+    if (dateRange === 'custom') {
+      if (customStartDate && day < customStartDate) return false;
+      if (customEndDate && day > customEndDate) return false;
+      return true;
     }
     return true;
   };
@@ -235,11 +250,12 @@ const AdminDashboard = () => {
     return list.filter(s => isWithinDateRange(s.created_at));
   }, [salesData, selectedBranch, dateRange, customStartDate, customEndDate, selectedStaff]);
 
-  // KPIs
-  const totalLeads    = leadsResponse?.count || filteredLeads.length;
-  const totalSalesCount = salesResponse?.count || filteredSales.length;
+  // KPIs must follow the visible filters, not the unfiltered server page count.
+  const filtersActive = dateRange !== 'all' || selectedBranch !== 'all' || selectedSource !== 'all' || selectedSegment !== 'all' || selectedStaff !== 'all' || selectedCampaign !== 'all';
+  const totalLeads    = filtersActive ? filteredLeads.length : (leadsResponse?.count || filteredLeads.length);
+  const totalSalesCount = filtersActive ? filteredSales.length : (salesResponse?.count || filteredSales.length);
   const advanceBookingsCount = filteredSales.filter(s => s.sale_type === 'advance').length;
-  const totalGoldWeight = normalizeGrams(salesResponse?.total_weight || filteredSales.reduce((a, s) => a + parseFloat(s.weight_grams || s.amount || 0), 0));
+  const totalGoldWeight = normalizeGrams(filteredSales.reduce((a, s) => a + parseFloat(s.weight_grams || s.amount || 0), 0));
   const activeCampaigns = (campaignsData || []).filter(c => c.status === 'active').length;
   const staffCount    = (teamData || []).length;
   const convRate      = totalLeads > 0 ? ((totalSalesCount / totalLeads) * 100) : 0;
@@ -359,7 +375,7 @@ const AdminDashboard = () => {
           <div className="flex items-center gap-2">
             <select
               value={dateRange}
-              onChange={e => setDateRange(e.target.value)}
+              onChange={e => applyDateRange(e.target.value)}
               className="branch-select"
               title="Filter by Date"
             >
@@ -369,6 +385,28 @@ const AdminDashboard = () => {
               <option value="month">📊 Last 30 Days</option>
               <option value="custom">⚙️ Custom Range</option>
             </select>
+            {dateRange === 'custom' && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={customStartDate}
+                  max={customEndDate || localYmd(new Date())}
+                  onChange={e => setCustomStartDate(e.target.value)}
+                  className="branch-select"
+                  title="Start date"
+                />
+                <span className="text-xs text-muted-foreground font-medium">to</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  min={customStartDate || undefined}
+                  max={localYmd(new Date())}
+                  onChange={e => setCustomEndDate(e.target.value)}
+                  className="branch-select"
+                  title="End date"
+                />
+              </div>
+            )}
 
             <select
               value={selectedBranch}
@@ -507,7 +545,8 @@ const AdminDashboard = () => {
             dateRange === 'all' ? "All-time pipeline" : 
             dateRange === 'today' ? "Received today" :
             dateRange === 'week' ? "Last 7 days" :
-            dateRange === 'month' ? "Last 30 days" : "Selected period"
+            dateRange === 'month' ? "Last 30 days" :
+            (customStartDate && customEndDate ? `${customStartDate} → ${customEndDate}` : "Selected period")
           }    
           icon={Users}       
           color="#C9972A" 

@@ -493,3 +493,9 @@
 .lead-contact { display: flex; flex-direction: column; gap: 2px; font-size: 0.77rem; color: hsl(var(--foreground)); }
 .lead-date { display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: hsl(var(--muted-foreground)); white-space: nowrap; }
 
+.custom-staff-marker,
+.leaflet-div-icon.custom-staff-marker {
+  background: transparent !important;
+  border: none !important;
+}
+
