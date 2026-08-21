@@ -42,8 +42,8 @@ const DashboardLayout = () => {
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between bg-card border-b border-border p-4 sticky top-0 z-20">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-            <img src="/logo-gold.png" alt="Bindu Jewellery" className="w-6 h-6 object-contain" />
+          <div className="w-8 h-8 rounded-lg bg-[#C9972A]/15 text-[#8B6914] flex items-center justify-center">
+            <Gem size={16} />
           </div>
           <span className="font-bold text-foreground">Bindu Jewellery</span>
         </div>
@@ -69,8 +69,8 @@ const DashboardLayout = () => {
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="p-5 border-b border-border hidden md:flex items-center gap-3">
-          <div className="w-10 h-10 flex items-center justify-center shadow-sm">
-            <img src="/logo-gold.png" alt="Bindu Jewellery" className="w-10 h-10 object-contain" />
+          <div className="w-10 h-10 rounded-xl bg-[#C9972A]/15 text-[#8B6914] flex items-center justify-center shadow-sm">
+            <Gem size={20} />
           </div>
           <div>
             <h1 className="font-bold text-foreground leading-tight tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>

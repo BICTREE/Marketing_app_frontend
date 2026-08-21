@@ -46,7 +46,13 @@ const Login = () => {
                 textAlign: 'center'
             }}>
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                    <img src="/logo-gold.png" alt="Bindu Jewellery Logo" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+                    <div style={{
+                        width: 72, height: 72, borderRadius: 18,
+                        background: 'rgba(201,151,42,0.15)', color: '#8B6914',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>
+                        <Gem size={32} />
+                    </div>
                 </div>
                 
                 <h1 style={{ fontSize: '1.75rem', fontWeight: 600, marginBottom: '0.5rem' }}>Bindu Jewellery</h1>

@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Mail, ArrowLeft, Loader2, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { ShieldCheck, Mail, ArrowLeft, Loader2, RefreshCw, Eye, EyeOff, Gem } from 'lucide-react';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
 
@@ -103,8 +103,8 @@ const LoginPage = () => {
       {/* Logo + Brand */}
       <div className="text-center space-y-3">
         <div className="flex justify-center">
-          <div className="w-16 h-16 flex items-center justify-center shadow-lg">
-            <img src="/logo-gold.png" alt="Bindu Jewellery" className="w-16 h-16 object-contain" />
+          <div className="w-16 h-16 rounded-2xl bg-[#C9972A]/15 text-[#8B6914] flex items-center justify-center shadow-sm">
+            <Gem size={28} />
           </div>
         </div>
         <div>

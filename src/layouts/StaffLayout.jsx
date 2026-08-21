@@ -39,8 +39,8 @@ const StaffLayout = () => {
       {/* Top Header */}
       <header className="bg-white border-b border-gray-200 p-4 sticky top-0 z-20 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 flex items-center justify-center">
-            <img src="/logo-gold.png" alt="Bindu Jewellery" className="w-8 h-8 object-contain" />
+          <div className="w-8 h-8 rounded-lg bg-[#C9972A]/15 text-[#8B6914] flex items-center justify-center">
+            <Gem size={16} />
           </div>
           <div>
             <h1 className="font-bold text-gray-900 leading-tight">Bindu Jewellery</h1>

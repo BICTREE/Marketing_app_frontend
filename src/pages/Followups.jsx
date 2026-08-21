@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/axios';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   Loader2, Phone, Calendar, User, Search, Filter, 
-  CheckCircle2, Clock, AlertCircle, MoreHorizontal,
-  ExternalLink, UserPlus, MessageSquare, Mail, Activity, Sparkles
+  CheckCircle2, Clock, AlertCircle, Pencil, Trash2,
+  ExternalLink, UserPlus, Activity
 } from 'lucide-react';
 import { format, isPast, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -29,18 +28,19 @@ import {
 } from "@/components/ui/select";
 import { useNavigate } from 'react-router-dom';
 
-const PRIORITY_COLORS = {
-  urgent: 'bg-red-100 text-red-700 border-red-200',
-  high: 'bg-orange-100 text-orange-700 border-orange-200',
-  medium: 'bg-blue-100 text-blue-700 border-blue-200',
-  low: 'bg-gray-100 text-gray-700 border-gray-200',
+const PRIORITY_META = {
+  urgent: { bar: 'bg-rose-500', badge: 'bg-rose-50 text-rose-700 ring-rose-200', label: 'Urgent' },
+  high:   { bar: 'bg-orange-500', badge: 'bg-orange-50 text-orange-700 ring-orange-200', label: 'High' },
+  medium: { bar: 'bg-sky-500', badge: 'bg-sky-50 text-sky-700 ring-sky-200', label: 'Medium' },
+  low:    { bar: 'bg-slate-400', badge: 'bg-slate-50 text-slate-600 ring-slate-200', label: 'Low' },
 };
 
-const STATUS_ICONS = {
-  pending: <Clock size={14} className="text-blue-500" />,
-  scheduled: <Calendar size={14} className="text-purple-500" />,
-  missed: <AlertCircle size={14} className="text-red-500" />,
-  completed: <CheckCircle2 size={14} className="text-green-500" />,
+const STATUS_META = {
+  pending:   { icon: Clock, className: 'text-sky-600 bg-sky-50' },
+  scheduled: { icon: Calendar, className: 'text-violet-600 bg-violet-50' },
+  missed:    { icon: AlertCircle, className: 'text-rose-600 bg-rose-50' },
+  completed: { icon: CheckCircle2, className: 'text-emerald-600 bg-emerald-50' },
+  returned:  { icon: AlertCircle, className: 'text-rose-700 bg-rose-50' },
 };
 
 const Followups = () => {
@@ -327,96 +327,129 @@ const Followups = () => {
       {isLoading ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-primary" size={40} /></div>
       ) : filteredFollowups.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredFollowups.map((followup) => (
-            <Card key={followup.id} className="overflow-hidden hover:shadow-md transition-shadow border-border/60">
-            <div className={`h-1.5 ${
-                followup.assigned_to ? 'bg-border' : 'bg-amber-400 animate-pulse'
-              }`} />
-              <CardHeader className="pb-3">
-                <div className="flex justify-between items-start">
-                  <Badge variant="outline" className={`${PRIORITY_COLORS[followup.priority]} capitalize text-[10px] px-2 py-0`}>
-                    {followup.priority}
-                  </Badge>
-                  <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                    {STATUS_ICONS[followup.status]}
-                    <span className="capitalize">{followup.status}</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+          {filteredFollowups.map((followup) => {
+            const priority = PRIORITY_META[followup.priority] || PRIORITY_META.medium;
+            const status = STATUS_META[followup.status] || STATUS_META.pending;
+            const StatusIcon = status.icon;
+            const overdue = isPast(new Date(followup.scheduled_date)) && !followup.completed;
+            const unassigned = !followup.assigned_to;
+            const initial = (followup.assigned_to_name || followup.lead_name || '?')[0]?.toUpperCase();
+
+            return (
+              <article
+                key={followup.id}
+                className={`group relative flex flex-col rounded-2xl border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-all hover:shadow-[0_8px_24px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 ${
+                  unassigned ? 'border-amber-300/80' : 'border-border/70'
+                }`}
+              >
+                <div className={`absolute left-0 top-4 bottom-4 w-1 rounded-full ${priority.bar}`} />
+
+                <div className="flex items-start justify-between gap-3 px-5 pt-4 pb-3 pl-5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${priority.badge}`}>
+                      {priority.label}
+                    </span>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${status.className}`}>
+                      <StatusIcon size={11} />
+                      {followup.status}
+                    </span>
                   </div>
-                </div>
-                <CardTitle className="text-lg mt-2 flex items-center justify-between">
-                  <span className="truncate">{followup.lead_name}</span>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-8 w-8 text-muted-foreground"
+                  <button
+                    type="button"
+                    className="shrink-0 h-8 w-8 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted transition-colors inline-flex items-center justify-center"
                     onClick={() => navigate(`${pathPrefix}/${followup.lead}`)}
+                    title="Open lead"
                   >
                     <ExternalLink size={14} />
-                  </Button>
-                </CardTitle>
-                <div className="text-sm text-muted-foreground flex items-center gap-1">
-                   <Phone size={12} /> {followup.lead_phone}
+                  </button>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="bg-muted/30 p-3 rounded-lg space-y-2">
-                  <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
-                    <Calendar size={14} className="text-primary" />
-                    {format(new Date(followup.scheduled_date), 'PPP')}
-                    {isPast(new Date(followup.scheduled_date)) && !followup.completed && (
-                      <span className="text-red-500 font-bold ml-auto text-[10px] uppercase">Overdue</span>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground italic line-clamp-2">
-                    "{followup.note || 'No notes provided'}"
+
+                <div className="px-5 pb-3 space-y-1">
+                  <h3 className="text-[17px] font-bold text-foreground leading-snug truncate" style={{ fontFamily: "'Playfair Display', serif" }}>
+                    {followup.lead_name || 'Unknown lead'}
+                  </h3>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+                    <Phone size={13} className="opacity-70" />
+                    {followup.lead_phone || 'No phone'}
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Assigned To</span>
-                    <div className="flex items-center gap-2 mt-1">
-                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                        <User size={12} />
-                      </div>
-                      <span className="text-sm font-medium">{followup.assigned_to_name || 'Unassigned'}</span>
+                <div className="mx-5 mb-3 rounded-xl bg-[#F7F3EB] px-3.5 py-3 space-y-2">
+                  <div className="flex items-center gap-2 text-[12px] font-semibold text-foreground">
+                    <Calendar size={13} className="text-[#C9972A]" />
+                    <span>{format(new Date(followup.scheduled_date), 'MMM d, yyyy')}</span>
+                    <span className="text-muted-foreground font-medium">
+                      {format(new Date(followup.scheduled_date), 'h:mm a')}
+                    </span>
+                    {overdue && (
+                      <span className="ml-auto rounded-md bg-rose-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-rose-700">
+                        Overdue
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[13px] leading-relaxed text-slate-600 line-clamp-2">
+                    {followup.note || 'No notes yet for this follow-up.'}
+                  </p>
+                </div>
+
+                <div className="px-5 pb-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className={`h-9 w-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                      unassigned ? 'bg-amber-100 text-amber-800' : 'bg-[#0F6E56]/10 text-[#0F6E56]'
+                    }`}>
+                      {unassigned ? <User size={14} /> : initial}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Assigned to</p>
+                      <p className="text-sm font-semibold truncate">{followup.assigned_to_name || 'Unassigned'}</p>
                     </div>
                   </div>
-
                   {isAdmin && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="h-8 border-primary/20 hover:bg-primary/5 text-primary"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 shrink-0 rounded-full border-[#C9972A]/30 text-[#8B6914] hover:bg-[#C9972A]/10"
                       onClick={() => {
                         setSelectedFollowup(followup);
                         setIsAssignModalOpen(true);
                       }}
                     >
-                      <UserPlus size={14} className="mr-1.5" />
-                      Assign
+                      <UserPlus size={13} className="mr-1" />
+                      {unassigned ? 'Assign' : 'Reassign'}
                     </Button>
                   )}
                 </div>
-                
+
+                {followup.status === 'returned' && (
+                  <div className="mx-5 mb-3 rounded-xl bg-rose-50 border border-rose-200 px-3 py-2.5 text-xs text-rose-900">
+                    <div className="flex items-center gap-1.5 font-bold text-rose-700">
+                      <AlertCircle size={13} /> Returned to manager
+                    </div>
+                    <p className="mt-1 text-rose-800/80 leading-relaxed">
+                      {followup.status_reason || 'Staff reported an issue.'}
+                    </p>
+                  </div>
+                )}
+
                 {!followup.completed && followup.status !== 'returned' && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    <Button 
-                      className="flex-1 bg-[#0F6E56] hover:bg-[#084d3c] text-white font-bold text-xs h-8"
-                      size="sm"
+                  <div className="mt-auto border-t border-border/60 px-4 py-3 flex items-center gap-2">
+                    <Button
+                      className="flex-1 h-9 rounded-xl bg-[#0F6E56] hover:bg-[#084d3c] text-white text-xs font-bold shadow-none"
                       onClick={() => {
                         setFollowupToComplete(followup);
                         setIsCompleteModalOpen(true);
                       }}
                     >
-                      <CheckCircle2 size={13} className="mr-1" /> Mark Done
+                      <CheckCircle2 size={14} className="mr-1.5" /> Mark Done
                     </Button>
 
                     {isAdmin && (
-                      <Button 
+                      <Button
                         variant="outline"
-                        size="sm"
-                        className="h-8 border-amber-300 text-amber-900 hover:bg-amber-50 font-bold text-xs"
+                        size="icon"
+                        className="h-9 w-9 rounded-xl border-border text-muted-foreground hover:text-amber-800 hover:bg-amber-50"
+                        title="Edit / Reschedule"
                         onClick={() => {
                           setEditFollowup(followup);
                           setEditDate(followup.scheduled_date ? followup.scheduled_date.slice(0, 16) : '');
@@ -425,51 +458,44 @@ const Followups = () => {
                           setIsEditModalOpen(true);
                         }}
                       >
-                        ✏️ Edit
+                        <Pencil size={14} />
                       </Button>
                     )}
 
                     {isAdmin && (
-                      <Button 
+                      <Button
                         variant="outline"
-                        size="sm"
-                        className="h-8 border-red-200 text-red-600 hover:bg-red-50 font-bold text-xs"
+                        size="icon"
+                        className="h-9 w-9 rounded-xl border-border text-muted-foreground hover:text-rose-700 hover:bg-rose-50"
+                        title="Cancel"
                         onClick={() => {
                           setCancelFollowup(followup);
                           setCancelReason('');
                           setIsCancelModalOpen(true);
                         }}
                       >
-                        🗑️ Cancel
+                        <Trash2 size={14} />
                       </Button>
                     )}
 
-                    <Button 
+                    <Button
                       variant="outline"
-                      size="sm"
-                      className="border-red-200 text-red-700 hover:bg-red-50 font-bold text-xs h-8"
+                      size="icon"
+                      className="h-9 w-9 rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50"
+                      title="Return issue"
                       onClick={() => {
                         setIssueFollowup(followup);
                         setIssueNote('');
                         setIsIssueModalOpen(true);
                       }}
                     >
-                      <AlertCircle size={13} className="mr-1" /> Return Issue
+                      <AlertCircle size={14} />
                     </Button>
                   </div>
                 )}
-
-                {followup.status === 'returned' && (
-                  <div className="mt-3 p-2.5 rounded-xl bg-red-50/80 border border-red-200 text-red-900 text-xs">
-                    <div className="flex items-center gap-1.5 font-bold text-red-700">
-                      <AlertCircle size={13} /> Task Returned to Manager:
-                    </div>
-                    <p className="mt-1 text-gray-700 italic">"{followup.status_reason || 'Staff reported an issue.'}"</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+              </article>
+            );
+          })}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-24 text-center bg-card rounded-2xl border border-dashed border-border shadow-sm">
