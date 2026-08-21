@@ -69,9 +69,10 @@ const taskCreateSchema = z.object({
 
 const PERMISSION_GROUPS = [
   { group: 'Leads', fields: ['can_view_leads', 'can_add_leads', 'can_edit_leads', 'can_assign_leads', 'can_delete_leads'] },
+  { group: 'Follow-ups & Calls', fields: ['can_view_followups', 'can_view_calls', 'can_add_calls'] },
   { group: 'Staff', fields: ['can_view_staff', 'can_add_staff', 'can_edit_staff', 'can_delete_staff'] },
   { group: 'Attendance', fields: ['can_view_attendance', 'can_approve_attendance'] },
-  { group: 'Calls & Sales', fields: ['can_view_calls', 'can_add_calls', 'can_view_sales', 'can_add_sales'] },
+  { group: 'Sales', fields: ['can_view_sales', 'can_add_sales'] },
   { group: 'Reports & Campaigns', fields: ['can_view_reports', 'can_export_reports', 'can_view_campaigns', 'can_create_campaigns', 'can_view_field_visits'] }
 ];
 

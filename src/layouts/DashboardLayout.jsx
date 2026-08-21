@@ -25,7 +25,7 @@ const DashboardLayout = () => {
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: dashboardPath, permission: 'dashboard:view' },
     { label: 'Leads', icon: Users, path: '/leads', permission: 'leads:view' },
-    { label: 'Follow-ups', icon: CalendarCheck, path: '/followups', permission: 'leads:view' },
+    { label: 'Follow-ups', icon: CalendarCheck, path: '/followups', permission: 'followups:view' },
     { label: 'Calls', icon: Phone, path: '/calls', permission: 'calls:view' },
     { label: 'Sales', icon: DollarSign, path: '/sales', permission: 'sales:view' },
     { label: 'Campaigns', icon: Megaphone, path: '/campaigns', permission: 'campaigns:view' },
