@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/api/axios';
@@ -44,6 +45,73 @@ const daysAgoYmd = (days) => {
 };
 
 const defaultCustomRange = () => ({ start: daysAgoYmd(7), end: localYmd(new Date()) });
+
+const LIVE_STATUS = {
+  live:    { color: '#10B981', label: 'Live' },
+  delayed: { color: '#F59E0B', label: 'Delayed' },
+  offline: { color: '#6B7280', label: 'Offline' },
+  gps_off: { color: '#EF4444', label: 'GPS Off' },
+};
+
+const LiveStaffStrip = ({ locations = [] }) => {
+  const liveCount = locations.filter(l => l.gps_status === 'live').length;
+
+  return (
+    <div className="chart-card mb-6 overflow-hidden">
+      <div className="chart-card-header">
+        <div>
+          <h3 className="chart-title">Live Field Staff</h3>
+          <p className="chart-sub">
+            {locations.length === 0
+              ? 'No field staff reporting right now'
+              : `${liveCount} live · ${locations.length} on the map`}
+          </p>
+        </div>
+        <Link to="/field-visits" className="text-xs font-bold text-[#0F6E56] hover:underline">
+          Open live map →
+        </Link>
+      </div>
+      {locations.length === 0 ? (
+        <div className="px-5 py-8 text-sm text-muted-foreground">Staff appear here with photo, visit, and GPS once the mobile app sends a location.</div>
+      ) : (
+        <div className="px-4 py-3 overflow-x-auto">
+          <div className="flex items-stretch gap-3 min-w-max">
+            {locations.map((loc) => {
+              const style = LIVE_STATUS[loc.gps_status] || LIVE_STATUS.offline;
+              const photo = loc.photo || loc.attendance_photo || loc.staff_avatar;
+              return (
+                <Link
+                  key={loc.staff_id}
+                  to="/field-visits"
+                  className="flex items-center gap-3 min-w-[260px] max-w-[320px] rounded-xl border bg-white p-2.5 hover:border-emerald-400 transition-colors"
+                >
+                  {photo ? (
+                    <img src={photo} alt={loc.staff_name} className="h-14 w-14 rounded-full object-cover border-2 shrink-0" style={{ borderColor: style.color }} />
+                  ) : (
+                    <div className="h-14 w-14 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0" style={{ background: style.color }}>
+                      {(loc.staff_name || '?')[0].toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold truncate">{loc.staff_name}</p>
+                    <p className="text-[10px] font-semibold" style={{ color: style.color }}>{style.label}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">
+                      {loc.lead_name ? `Visiting ${loc.lead_name}` : loc.branch_name || 'No active visit'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      {loc.staff_phone ? loc.staff_phone : ''}
+                      {loc.battery_level != null ? ` · ${Math.round(loc.battery_level)}% battery` : ''}
+                    </p>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 // Today's Leads Panel (Pipeline Snapshot)
 const TodayLeadsPanel = ({ leads, dateRange }) => {
@@ -201,6 +269,11 @@ const AdminDashboard = () => {
   const { data: teamData,      isLoading: loadingTeam,     refetch: refetchTeam }     = useQuery({ queryKey: ['admin-team'],      queryFn: () => api.get('/accounts/users/').then(r => r.data.results || r.data) });
   const { data: branchesData }                                                        = useQuery({ queryKey: ['branches'],         queryFn: () => api.get('/branches/').then(r => r.data.results || r.data) });
   const { data: segmentsData }                                                        = useQuery({ queryKey: ['segments'],         queryFn: () => api.get('/branches/segments/').then(r => r.data.results || r.data) });
+  const { data: liveTracking, refetch: refetchLive } = useQuery({
+    queryKey: ['admin-live-tracking'],
+    queryFn: () => api.get('/field-visits/live-tracking/').then(r => r.data.locations || []).catch(() => []),
+    refetchInterval: 10000,
+  });
 
   const leadsData = leadsResponse?.results || [];
   const salesData = salesResponse?.results || [];
@@ -208,7 +281,7 @@ const AdminDashboard = () => {
   const isLoading = loadingLeads || loadingSales || loadingCampaigns || loadingTeam;
 
   const handleRefresh = () => {
-    refetchLeads(); refetchSales(); refetchCampaigns(); refetchTeam();
+    refetchLeads(); refetchSales(); refetchCampaigns(); refetchTeam(); refetchLive();
     setLastRefresh(new Date());
   };
 
@@ -575,6 +648,8 @@ const AdminDashboard = () => {
         <KPICard title="Advance Bookings"  value={advanceBookingsCount} sub="Future fulfillments" icon={Calendar}   color="#8B5CF6" gradient="linear-gradient(135deg,#8B5CF6,#A78BFA)" />
         <KPICard title="Active Campaigns"  value={activeCampaigns} sub="Currently running"     icon={Megaphone}   color="#1A5490" gradient="linear-gradient(135deg,#1A5490,#3B82F6)" />
       </div>
+
+      <LiveStaffStrip locations={liveTracking || []} />
 
       {/* ── Today's Leads + Source Breakdown ────────────────────── */}
       <TodayLeadsPanel leads={filteredLeads} dateRange={dateRange} />
