@@ -6,6 +6,7 @@ import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useNavigate } from 'react-router-dom';
 import api from '@/api/axios';
+import useAuth from '@/hooks/useAuth';
 import { 
   Megaphone, Plus, Loader2, Calendar, Users, BarChart3, Filter, 
   TrendingUp, Target, Settings, Search, Grid, Menu,
@@ -39,6 +40,8 @@ const campaignSchema = z.object({
 });
 
 const CampaignsPage = () => {
+  const { hasPermission } = useAuth();
+  const canCreateCampaign = hasPermission('campaigns:create') || hasPermission('campaigns:manage');
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [selectedBranch, setSelectedBranch] = useState('all');
@@ -216,6 +219,7 @@ const CampaignsPage = () => {
             Integrations
           </Button>
           
+          {canCreateCampaign && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2 shadow-md">
@@ -348,6 +352,7 @@ const CampaignsPage = () => {
               </form>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
 

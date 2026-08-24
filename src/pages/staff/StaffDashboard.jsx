@@ -45,7 +45,7 @@ const StaffDashboard = () => {
       const data = res.data.results || res.data;
       return Array.isArray(data) ? data : [];
     }),
-    enabled: hasPermission('leads:view')
+    enabled: hasPermission('followups:view')
   });
 
   const { data: visitsData } = useQuery({
@@ -181,7 +181,7 @@ const StaffDashboard = () => {
         )}
         
         {/* Card 3: Pending Visits */}
-        {hasPermission('field_visits:view') && ['owner', 'manager', 'sub_manager', 'field_staff'].includes(user?.role) && (
+        {hasPermission('field_visits:view') && (
           <KPICard 
             title="Pending Visits" 
             value={pendingVisits || 0} 
@@ -207,7 +207,7 @@ const StaffDashboard = () => {
         )}
 
         {/* Card 5: Calls Today */}
-        {hasPermission('calls:view') && ['owner', 'manager', 'sub_manager', 'telecaller'].includes(user?.role) && (
+        {hasPermission('calls:view') && (
           <KPICard 
             title="Calls Today" 
             value={callsToday || 0} 
@@ -220,7 +220,7 @@ const StaffDashboard = () => {
       </div>
 
       <div className="chart-row-2 mt-4 lg:mt-6">
-        {hasPermission('leads:view') && (
+        {hasPermission('followups:view') && (
           <ChartCard title="Today's Scheduled Tasks">
             <div className="space-y-4">
               {todayFollowups.length > 0 ? (

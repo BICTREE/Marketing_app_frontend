@@ -39,8 +39,25 @@ const TIMELINE_META = {
   visit_completed:    { icon: CheckCircle2,  color: 'bg-emerald-100 text-emerald-600 border-emerald-200', label: 'Visit Completed' },
   lead_created:       { icon: UserCheck,     color: 'bg-amber-100 text-amber-600 border-amber-200',  label: 'New Lead' },
   followup_scheduled: { icon: Clock,         color: 'bg-orange-100 text-orange-600 border-orange-200',label: 'Follow-up Set' },
+  followup_completed: { icon: CheckCircle2,  color: 'bg-teal-100 text-teal-600 border-teal-200',      label: 'Follow-up Done' },
+  call_logged:        { icon: Phone,         color: 'bg-blue-100 text-blue-600 border-blue-200',      label: 'Call Log' },
   sale:               { icon: ShoppingBag,   color: 'bg-emerald-100 text-emerald-600 border-emerald-200',  label: 'Closed Sale' },
   note:               { icon: StickyNote,    color: 'bg-purple-100 text-purple-600 border-purple-200', label: 'Manager Note / Activity' },
+};
+
+const formatTimelineDetails = (event) => {
+  const d = event?.details;
+  if (d == null || d === '') return 'No details provided.';
+  if (typeof d === 'string') return d;
+  if (d.outcome || d.notes || d.staff || d.duration != null) {
+    return [
+      d.outcome ? `Outcome: ${String(d.outcome).replace(/_/g, ' ')}` : null,
+      d.staff ? `Staff: ${d.staff}` : null,
+      d.duration != null && d.duration !== '' ? `Duration: ${d.duration}s` : null,
+      d.notes || d.note || d.message || d.details || null,
+    ].filter(Boolean).join('\n');
+  }
+  return d.note || d.message || d.details || JSON.stringify(d);
 };
 
 // ── Sub-Components ────────────────────────────────────────────────────────────
@@ -74,9 +91,7 @@ const TimelineEvent = ({ event }) => {
           </span>
         </div>
         <div className="text-xs text-gray-800 font-medium leading-relaxed whitespace-pre-wrap">
-          {typeof event.details === 'string' 
-            ? event.details 
-            : (event.details?.note || event.details?.message || JSON.stringify(event.details || "No details provided."))}
+          {formatTimelineDetails(event)}
         </div>
         {event.metadata && Object.keys(event.metadata).length > 0 && (
           <div className="mt-3 pt-2.5 border-t border-gray-200/50 flex flex-wrap gap-2">
@@ -295,6 +310,13 @@ const CustomerProfileDetail = ({ customerId }) => {
   const [managerNotes, setManagerNotes] = useState('');
   const [selectedLeadForReassign, setSelectedLeadForReassign] = useState(null);
   const [newStaffId, setNewStaffId] = useState('');
+  const [callLogForm, setCallLogForm] = useState({
+    leadId: '',
+    outcome: 'interested',
+    notes: '',
+    duration_seconds: '',
+    next_followup_date: '',
+  });
 
   // Fetch Customer details
   const { data: customer, isLoading, isError } = useQuery({
@@ -310,6 +332,20 @@ const CustomerProfileDetail = ({ customerId }) => {
   });
 
   const activeLead = customer?.leads?.[customer?.leads?.length - 1] || null;
+  const leadIdsKey = (customer?.leads || []).map((l) => l.id).join(',');
+
+  const { data: profileCallLogs = [] } = useQuery({
+    queryKey: ['customer-call-logs', customerId, leadIdsKey],
+    queryFn: async () => {
+      const ids = (customer?.leads || []).map((l) => l.id);
+      const batches = await Promise.all(ids.map((id) =>
+        api.get('/calls/call-logs/', { params: { lead: id, page_size: 100 } })
+          .then((r) => r.data.results || [])
+      ));
+      return batches.flat().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    },
+    enabled: !!customerId && !!leadIdsKey,
+  });
 
   // Manager Decision Mutation
   const managerDecisionMutation = useMutation({
@@ -363,6 +399,17 @@ const CustomerProfileDetail = ({ customerId }) => {
     onError: (err) => toast.error("Update failed: " + (err.response?.data?.detail || err.message))
   });
 
+  const logProfileCallMutation = useMutation({
+    mutationFn: (payload) => api.post('/calls/call-logs/', payload),
+    onSuccess: () => {
+      toast.success('Call added to this lead. Earlier calls are still here.');
+      setCallLogForm((prev) => ({ ...prev, notes: '', duration_seconds: '', next_followup_date: '' }));
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['customer-call-logs', customerId] });
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || 'Could not save call'),
+  });
+
   const handleUpdate = (e) => {
     e.preventDefault();
     updateMutation.mutate(editData);
@@ -393,6 +440,7 @@ const CustomerProfileDetail = ({ customerId }) => {
 
   const tabs = [
     { id: 'overview', label: 'Overview & Notes', icon: Activity },
+    { id: 'calls', label: `Calls (${profileCallLogs.length || customer.total_calls || 0})`, icon: Phone },
     { id: 'timeline', label: 'Activity Timeline', icon: Clock },
     { id: 'leads', label: `Lead Records (${customer.leads?.length || 0})`, icon: Briefcase },
     { id: 'details', label: 'Demographics & Address', icon: FileText },
@@ -474,6 +522,13 @@ const CustomerProfileDetail = ({ customerId }) => {
               </span>
               <a href={`tel:${customer.phone}`} className="font-bold text-indigo-600 hover:underline">{customer.phone}</a>
             </div>
+            {customer.phone && (
+              <a href={`tel:${customer.phone}`} className="block">
+                <Button type="button" className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs">
+                  <Phone size={14} className="mr-1.5" /> Call this lead
+                </Button>
+              </a>
+            )}
 
             {customer.email && (
               <div className="flex items-center justify-between text-gray-700 text-xs">
@@ -665,6 +720,128 @@ const CustomerProfileDetail = ({ customerId }) => {
                     </div>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: CALLS */}
+          {activeTab === 'calls' && (
+            <div className="space-y-6 animate-in fade-in duration-300 max-w-2xl">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-1">
+                  <Phone size={18} className="text-[#C9972A]" /> Call this lead
+                </h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  Dial, then add notes. Each save creates a new call record — older notes stay on this profile.
+                </p>
+                <form
+                  className="space-y-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-4"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const leadId = callLogForm.leadId || activeLead?.id || customer.leads?.[0]?.id;
+                    if (!leadId) {
+                      toast.error('This customer has no lead to attach a call to.');
+                      return;
+                    }
+                    logProfileCallMutation.mutate({
+                      lead: Number(leadId),
+                      outcome: callLogForm.outcome,
+                      notes: callLogForm.notes,
+                      duration_seconds: callLogForm.duration_seconds ? Number(callLogForm.duration_seconds) : null,
+                      next_followup_date: callLogForm.next_followup_date || null,
+                    });
+                  }}
+                >
+                  {customer.leads?.length > 1 && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Lead record</Label>
+                      <select
+                        className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs"
+                        value={callLogForm.leadId || String(activeLead?.id || '')}
+                        onChange={(e) => setCallLogForm({ ...callLogForm, leadId: e.target.value })}
+                      >
+                        {customer.leads.map((lead) => (
+                          <option key={lead.id} value={lead.id}>
+                            Lead #{lead.id} · {lead.stage || lead.stage_display || 'open'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Outcome</Label>
+                      <select
+                        className="w-full h-10 rounded-xl border border-gray-200 bg-white px-3 text-xs"
+                        value={callLogForm.outcome}
+                        onChange={(e) => setCallLogForm({ ...callLogForm, outcome: e.target.value })}
+                      >
+                        <option value="interested">Interested</option>
+                        <option value="call_later">Call later</option>
+                        <option value="no_answer">No answer</option>
+                        <option value="not_interested">Not interested</option>
+                        <option value="converted">Converted</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Duration (sec)</Label>
+                      <Input
+                        type="number"
+                        className="h-10 rounded-xl text-xs"
+                        value={callLogForm.duration_seconds}
+                        onChange={(e) => setCallLogForm({ ...callLogForm, duration_seconds: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Next call date</Label>
+                    <Input
+                      type="date"
+                      className="h-10 rounded-xl text-xs"
+                      value={callLogForm.next_followup_date}
+                      onChange={(e) => setCallLogForm({ ...callLogForm, next_followup_date: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Notes</Label>
+                    <textarea
+                      className="w-full min-h-[90px] rounded-xl border border-gray-200 bg-white p-3 text-xs"
+                      value={callLogForm.notes}
+                      onChange={(e) => setCallLogForm({ ...callLogForm, notes: e.target.value })}
+                      placeholder="What they said, interest, callback time…"
+                    />
+                  </div>
+                  <Button type="submit" className="w-full h-10 text-xs font-bold" disabled={logProfileCallMutation.isPending}>
+                    {logProfileCallMutation.isPending ? <Loader2 className="animate-spin mr-2" size={14} /> : null}
+                    Save call (keep history)
+                  </Button>
+                </form>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 mb-3">Call history</h3>
+                {profileCallLogs.length === 0 ? (
+                  <div className="py-10 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                    <p className="text-sm text-gray-500">No call logs yet on this profile.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {profileCallLogs.map((call) => (
+                      <div key={call.id} className="rounded-2xl border border-gray-100 bg-white p-4">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-xs font-bold capitalize text-gray-900">
+                            {(call.outcome || '').replace(/_/g, ' ')}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {call.created_at ? format(new Date(call.created_at), 'dd MMM yyyy, h:mm a') : ''}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-500">{call.staff_name || 'Staff'} · {call.duration_seconds ? `${call.duration_seconds}s` : 'no duration'}</p>
+                        {call.notes && <p className="text-xs text-gray-800 mt-2 whitespace-pre-wrap">{call.notes}</p>}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}

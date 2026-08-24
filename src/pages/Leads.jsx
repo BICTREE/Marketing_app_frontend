@@ -81,6 +81,7 @@ const leadSchema = z.object({
   lead_type: z.string().default('normal'),
   followup_choice: z.string().optional(),
   followup_date: z.string().optional(),
+  date_of_birth: z.string().optional().or(z.literal('')),
   is_hot: z.boolean().default(false),
 });
 
@@ -324,6 +325,7 @@ const Leads = () => {
         // Pre-fill form with existing customer data
         if (response.data.name) setValue('name', response.data.name);
         if (response.data.email) setValue('email', response.data.email);
+        if (response.data.date_of_birth) setValue('date_of_birth', response.data.date_of_birth);
       }
     } catch (error) {
       setPhoneLookup(null);
@@ -362,6 +364,7 @@ const Leads = () => {
     
     // Clean up empty fields
     if (data.email === '') delete data.email;
+    if (data.date_of_birth === '') delete data.date_of_birth;
     if (data.notes === '') delete data.notes;
     if (data.recommendations === '') delete data.recommendations;
     if (data.referred_by === '') delete data.referred_by;
@@ -622,12 +625,19 @@ const Leads = () => {
                 </div>
               )}
 
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input {...register('email')} placeholder="Email (optional)" disabled={!!phoneLookup && !!phoneLookup.email} />
-                {phoneLookup && phoneLookup.email && (
-                  <p className="text-xs text-gray-500">Auto-filled from existing customer profile</p>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input {...register('email')} placeholder="Email (needed for birthday wish)" disabled={!!phoneLookup && !!phoneLookup.email} />
+                  {phoneLookup && phoneLookup.email && (
+                    <p className="text-xs text-gray-500">Auto-filled from existing customer profile</p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Date of Birth</Label>
+                  <Input type="date" {...register('date_of_birth')} disabled={!!phoneLookup && !!phoneLookup.date_of_birth} />
+                  <p className="text-[11px] text-muted-foreground">On this date at 12:01 AM we email a birthday wish automatically.</p>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

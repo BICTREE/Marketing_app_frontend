@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
-import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-dom';
+import React from 'react';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { 
-  LayoutDashboard, Users, MapPin, CalendarCheck, LogOut, Gem, User, Bell, PhoneCall
+  LayoutDashboard, Users, MapPin, CalendarCheck, LogOut, Gem, User, PhoneCall
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 import NotificationBell from '../components/NotificationBell';
 
 const StaffLayout = () => {
-  const { user, logout, isField, hasPermission } = useAuth();
+  const { logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,16 +22,12 @@ const StaffLayout = () => {
     { label: 'Home', icon: LayoutDashboard, path: '/staff/dashboard', permission: 'dashboard:view' },
     { label: 'Leads', icon: Users, path: '/staff/leads', permission: 'leads:view' },
     { label: 'Follow-ups', icon: CalendarCheck, path: '/staff/followups', permission: 'followups:view' },
-    { label: 'Calls', icon: PhoneCall, path: '/staff/calls', permission: 'calls:view', roles: ['owner', 'manager', 'sub_manager', 'telecaller'] },
-    { label: 'Sales', icon: Gem, path: '/staff/sales', permission: 'sales:view', roles: ['owner', 'manager', 'sub_manager'] },
-    { label: 'Visits', icon: MapPin, path: '/staff/field-visits', permission: 'field_visits:view', roles: ['owner', 'manager', 'sub_manager', 'field_staff'] },
+    { label: 'Calls', icon: PhoneCall, path: '/staff/calls', permission: 'calls:view' },
+    { label: 'Sales', icon: Gem, path: '/staff/sales', permission: 'sales:view' },
+    { label: 'Visits', icon: MapPin, path: '/staff/field-visits', permission: 'field_visits:view' },
     { label: 'Attendance', icon: CalendarCheck, path: '/staff/attendance', permission: 'attendance:view' },
     { label: 'Profile', icon: User, path: '/staff/profile', permission: 'profile:view' },
-  ].filter(item => {
-    const hasPerm = hasPermission(item.permission);
-    const hasRoleAccess = !item.roles || item.roles.includes(user?.role);
-    return hasPerm && hasRoleAccess;
-  });
+  ].filter(item => hasPermission(item.permission));
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">

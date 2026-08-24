@@ -43,6 +43,7 @@ const Followups = lazy(() => import('./pages/Followups'));
 const StaffLayout = lazy(() => import('./layouts/StaffLayout'));
 const StaffAttendance = lazy(() => import('./pages/staff/StaffAttendance'));
 const StaffFieldVisits = lazy(() => import('./pages/staff/StaffFieldVisits'));
+const StaffCalls = lazy(() => import('./pages/staff/StaffCalls'));
 
 const RootRedirect = () => {
   const { dashboardPath } = useAuth();
@@ -85,41 +86,39 @@ const AppRoutes = () => {
 
         {/* Protected Dashboard Routes (Admin/Manager) */}
         <Route element={<ProtectedRoute permission="dashboard:view" allowedRoles={['owner', 'admin', 'manager', 'sub_manager']}><DashboardLayout /></ProtectedRoute>}>
-          {/* Role-Specific Dashboard Routes */}
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/manager/dashboard" element={<ManagerDashboard />} />
 
-          {/* Core Feature Routes */}
-          <Route path="/leads" element={<Leads />} />
-          <Route path="/leads/:id" element={<CustomerProfile />} />
-          <Route path="/sales" element={<Sales />} />
-          <Route path="/calls" element={<Calls />} />
-          <Route path="/campaigns" element={<Campaigns />} />
-          <Route path="/campaigns/settings/integrations" element={<CampaignIntegrations />} />
+          <Route path="/leads" element={<ProtectedRoute permission="leads:view"><Leads /></ProtectedRoute>} />
+          <Route path="/leads/:id" element={<ProtectedRoute permission="leads:view"><CustomerProfile /></ProtectedRoute>} />
+          <Route path="/sales" element={<ProtectedRoute permission="sales:view"><Sales /></ProtectedRoute>} />
+          <Route path="/calls" element={<ProtectedRoute permission="calls:view"><Calls /></ProtectedRoute>} />
+          <Route path="/campaigns" element={<ProtectedRoute permission="campaigns:view"><Campaigns /></ProtectedRoute>} />
+          <Route path="/campaigns/settings/integrations" element={<ProtectedRoute permission="campaigns:view"><CampaignIntegrations /></ProtectedRoute>} />
           <Route path="/campaigns/integrations" element={<Navigate to="/campaigns/settings/integrations" replace />} />
-          <Route path="/team" element={<Team />} />
-          <Route path="/branches" element={<Branches />} />
-          <Route path="/attendance" element={<Attendance />} />
-          <Route path="/field-visits" element={<FieldVisits />} />
-          <Route path="/customers" element={<Customers />} />
-          <Route path="/reports" element={<ReportsPage />} />
+          <Route path="/team" element={<ProtectedRoute permission="staff:view"><Team /></ProtectedRoute>} />
+          <Route path="/branches" element={<ProtectedRoute permission="branches:view"><Branches /></ProtectedRoute>} />
+          <Route path="/attendance" element={<ProtectedRoute permission="attendance:view"><Attendance /></ProtectedRoute>} />
+          <Route path="/field-visits" element={<ProtectedRoute permission="field_visits:view"><FieldVisits /></ProtectedRoute>} />
+          <Route path="/customers" element={<ProtectedRoute permission="leads:view"><Customers /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute permission="reports:view"><ReportsPage /></ProtectedRoute>} />
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/followups" element={<Followups />} />
+          <Route path="/followups" element={<ProtectedRoute permission="followups:view"><Followups /></ProtectedRoute>} />
         </Route>
 
-        {/* Protected Dashboard Routes (Staff/Field Staff) */}
         <Route element={<ProtectedRoute allowedRoles={['staff', 'telecaller', 'field_staff', 'custom']}><StaffLayout /></ProtectedRoute>}>
           <Route path="/staff/dashboard" element={<StaffDashboard />} />
-          <Route path="/staff/leads" element={<Leads />} />
-          <Route path="/staff/leads/:id" element={<CustomerProfile />} />
-          <Route path="/staff/calls" element={<Calls />} />
-          <Route path="/staff/attendance" element={<StaffAttendance />} />
-          <Route path="/staff/field-visits" element={<StaffFieldVisits />} />
-          <Route path="/staff/customers" element={<Customers />} />
+          <Route path="/staff/leads" element={<ProtectedRoute permission="leads:view"><Leads /></ProtectedRoute>} />
+          <Route path="/staff/leads/:id" element={<ProtectedRoute permission="leads:view"><CustomerProfile /></ProtectedRoute>} />
+          <Route path="/staff/calls" element={<ProtectedRoute permission="calls:view"><StaffCalls /></ProtectedRoute>} />
+          <Route path="/staff/sales" element={<ProtectedRoute permission="sales:view"><Sales /></ProtectedRoute>} />
+          <Route path="/staff/attendance" element={<ProtectedRoute permission="attendance:view"><StaffAttendance /></ProtectedRoute>} />
+          <Route path="/staff/field-visits" element={<ProtectedRoute permission="field_visits:view"><StaffFieldVisits /></ProtectedRoute>} />
+          <Route path="/staff/customers" element={<ProtectedRoute permission="leads:view"><Customers /></ProtectedRoute>} />
           <Route path="/staff/profile" element={<ProfilePage />} />
           <Route path="/staff/notifications" element={<NotificationsPage />} />
-          <Route path="/staff/followups" element={<Followups />} />
+          <Route path="/staff/followups" element={<ProtectedRoute permission="followups:view"><Followups /></ProtectedRoute>} />
         </Route>
 
         {/* Fallback */}
