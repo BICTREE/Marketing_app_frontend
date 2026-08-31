@@ -61,9 +61,10 @@ const callSchema = z.object({
 const CallsPage = () => {
   const queryClient = useQueryClient();
   const [selectedBranch, setSelectedBranch] = useState('all');
-  const [timeRange, setTimeRange] = useState('month');
+  const [timeRange, setTimeRange] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [selectedStaff, setSelectedStaff] = useState('all');
   const [page, setPage] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [phoneLookup, setPhoneLookup] = useState(null);
@@ -80,6 +81,13 @@ const CallsPage = () => {
     })
   });
 
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const isAdmin = user?.role === 'owner' || user?.role === 'admin';
+  const isManager = user?.role === 'manager' || user?.role === 'sub_manager';
+  const isStaff = !isAdmin && !isManager;
+  const isTelecaller = user?.role === 'telecaller' || user?.role === 'staff';
+
   // Fetch Leads for dropdown
   const { data: leadsData, refetch: refetchLeads } = useQuery({
     queryKey: ['leads'],
@@ -90,11 +98,23 @@ const CallsPage = () => {
     enabled: isDialogOpen
   });
 
+  // Fetch staff list for admin/manager to filter by telecaller
+  const { data: staffListData } = useQuery({
+    queryKey: ['staff-list-calls'],
+    queryFn: () => api.get('/accounts/users/', {
+      params: { role: 'telecaller,staff', page_size: 100 }
+    }).then(res => {
+      const d = res.data.results || res.data;
+      return Array.isArray(d) ? d : [];
+    }),
+    enabled: isAdmin || isManager,
+  });
+
   // Fetch Call Logs (server-side branch filter via DjangoFilterBackend)
   const { data: callsResponse, isLoading } = useQuery({
     queryKey: [
       'calls', selectedBranch, timeRange, 
-      customStartDate, customEndDate, page
+      customStartDate, customEndDate, page, selectedStaff
     ],
     queryFn: () => api.get('/calls/call-logs/', {
       params: {
@@ -103,6 +123,7 @@ const CallsPage = () => {
         time_range: timeRange !== 'all' ? timeRange : undefined,
         start_date: timeRange === 'custom' ? customStartDate : undefined,
         end_date: timeRange === 'custom' ? customEndDate : undefined,
+        staff: selectedStaff !== 'all' ? selectedStaff : undefined,
       }
     }).then(res => res.data)
   });
@@ -112,12 +133,7 @@ const CallsPage = () => {
   const totalPages = callsResponse?.total_pages || 1;
   const totalCount = callsResponse?.count || 0;
   
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const isAdmin = user?.role === 'owner' || user?.role === 'admin';
-  const isManager = user?.role === 'manager' || user?.role === 'sub_manager';
-  const isStaff = !isAdmin && !isManager;
-  const isTelecaller = user?.role === 'telecaller' || user?.role === 'staff';
+  // user/role detection moved above staff query (line ~83)
 
   // Upcoming scheduled call follow-ups for telecallers
   const { data: upcomingCallsData } = useQuery({
@@ -380,16 +396,31 @@ const CallsPage = () => {
 
           {showFilters && (
             <div className="flex flex-wrap gap-2 animate-in slide-in-from-top-2">
-              <select 
-                value={selectedBranch}
-                onChange={(e) => { setSelectedBranch(e.target.value); setPage(1); }}
-                className="px-3 py-2 border rounded-md bg-background text-sm"
-              >
-                <option value="all">All Branches</option>
-                {branchesData?.map(branch => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
-              </select>
+              {(isAdmin || isManager) && (
+                <select 
+                  value={selectedBranch}
+                  onChange={(e) => { setSelectedBranch(e.target.value); setPage(1); }}
+                  className="px-3 py-2 border rounded-md bg-background text-sm"
+                >
+                  <option value="all">All Branches</option>
+                  {branchesData?.map(branch => (
+                    <option key={branch.id} value={branch.id}>{branch.name}</option>
+                  ))}
+                </select>
+              )}
+
+              {(isAdmin || isManager) && staffListData && staffListData.length > 0 && (
+                <select
+                  value={selectedStaff}
+                  onChange={(e) => { setSelectedStaff(e.target.value); setPage(1); }}
+                  className="px-3 py-2 border rounded-md bg-background text-sm"
+                >
+                  <option value="all">All Staff</option>
+                  {staffListData.map(s => (
+                    <option key={s.id} value={s.id}>{s.full_name} ({s.role})</option>
+                  ))}
+                </select>
+              )}
 
               <select 
                 value={timeRange}
@@ -846,7 +877,7 @@ const CallsPage = () => {
               <TableHeader>
                 <TableRow className="bg-muted/50">
                   <TableHead>Lead</TableHead>
-                  {isAdmin && <TableHead>Staff</TableHead>}
+                  {(isAdmin || isManager) && <TableHead>Staff</TableHead>}
                   <TableHead>Outcome</TableHead>
                   <TableHead>Duration</TableHead>
                   <TableHead className="hidden md:table-cell">Details</TableHead>
@@ -880,7 +911,7 @@ const CallsPage = () => {
                           )}
                         </div>
                       </TableCell>
-                      {isAdmin && <TableCell className="text-sm">{call.staff_name || '—'}</TableCell>}
+                      {(isAdmin || isManager) && <TableCell className="text-sm">{call.staff_name || '—'}</TableCell>}
                       <TableCell>
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
                           call.outcome === 'converted' ? 'bg-green-100 text-green-800' :
@@ -961,7 +992,7 @@ const CallsPage = () => {
                     )}
                     {call.notes && (
                       <p className="text-xs text-gray-600 bg-gray-50 p-2 rounded-md line-clamp-2 italic">
-                        "{call.notes}"
+                        &ldquo;{call.notes}&rdquo;
                       </p>
                     )}
                   </div>
