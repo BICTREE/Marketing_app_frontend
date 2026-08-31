@@ -4,6 +4,7 @@ import { useForm, Controller } from 'react-hook-form';
 import * as z from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/api/axios';
+import useAuth from '@/hooks/useAuth';
 import { 
   Phone, Plus, Loader2, Calendar, Filter, Clock, 
   TrendingUp, BarChart3, User, CheckCircle2, MapPin, Flame 
@@ -81,9 +82,8 @@ const CallsPage = () => {
     })
   });
 
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
-  const isAdmin = user?.role === 'owner' || user?.role === 'admin';
+  const { user, isOwner } = useAuth();
+  const isAdmin = isOwner;
   const isManager = user?.role === 'manager' || user?.role === 'sub_manager';
   const isStaff = !isAdmin && !isManager;
   const isTelecaller = user?.role === 'telecaller' || user?.role === 'staff';
@@ -133,7 +133,7 @@ const CallsPage = () => {
   const totalPages = callsResponse?.total_pages || 1;
   const totalCount = callsResponse?.count || 0;
   
-  // user/role detection moved above staff query (line ~83)
+
 
   // Upcoming scheduled call follow-ups for telecallers
   const { data: upcomingCallsData } = useQuery({
