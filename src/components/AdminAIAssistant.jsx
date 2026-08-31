@@ -73,7 +73,7 @@ const AdminAIAssistant = () => {
     mutationFn: (prompt) => api.post('/ai/chat/', { 
       prompt, 
       history: messages.slice(-6).map(m => ({ role: m.role, parts: [m.content] }))
-    }),
+    }, { timeout: 60000 }),
     onSuccess: (data) => {
       let resp = data.data;
       // Defensive: If the backend returns a StreamingHttpResponse with space padding,
