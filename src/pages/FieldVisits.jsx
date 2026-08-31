@@ -113,13 +113,22 @@ const MapRecenter = ({ center, zoom = 14 }) => {
 const SubMapRecenter = ({ points }) => {
   const map = useMap();
   useEffect(() => {
+    if (!map) return;
     if (points && points.length > 0) {
-      if (points.length === 1) {
-        map.setView(points[0], 15);
-      } else {
-        const bounds = L.latLngBounds(points);
-        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
-      }
+      const validPoints = points
+        .map(p => [Number(p[0]), Number(p[1])])
+        .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+        
+      try {
+        if (validPoints.length === 1) {
+          map.setView(validPoints[0], 15, { animate: false });
+        } else if (validPoints.length > 1) {
+          const bounds = L.latLngBounds(validPoints);
+          if (bounds.isValid()) {
+            map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16, animate: false });
+          }
+        }
+      } catch {}
     }
   }, [points, map]);
   return null;

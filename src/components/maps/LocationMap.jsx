@@ -97,11 +97,16 @@ const LocationMap = ({
     const map = useMap();
     
     useEffect(() => {
-      if (markers.length > 0) {
-        // Auto-fit map to show all markers
-        const bounds = markers.map(marker => [marker.latitude, marker.longitude]);
-        if (bounds.length > 0) {
-          map.fitBounds(bounds, { padding: [50, 50] });
+      if (!map) return;
+      const validBounds = (markers || [])
+        .map(marker => [Number(marker.latitude), Number(marker.longitude)])
+        .filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180 && !(p[0] === 0 && p[1] === 0));
+        
+      if (validBounds.length > 0) {
+        try {
+          map.fitBounds(validBounds, { padding: [50, 50], maxZoom: 16, animate: false });
+        } catch {
+          // Prevent Leaflet unmount animation position errors
         }
       }
     }, [markers, map]);

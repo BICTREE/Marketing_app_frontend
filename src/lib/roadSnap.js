@@ -31,7 +31,7 @@ async function matchChunk(points) {
 export async function snapTrailToRoads(latLngPoints) {
   const clean = (latLngPoints || [])
     .map((p) => [Number(p[0]), Number(p[1])])
-    .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]) && !(p[0] === 0 && p[1] === 0));
+    .filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180 && !(p[0] === 0 && p[1] === 0));
 
   if (clean.length < 2) return clean;
 
@@ -40,7 +40,7 @@ export async function snapTrailToRoads(latLngPoints) {
   for (let i = 1; i < clean.length; i++) {
     const [aLat, aLng] = deduped[deduped.length - 1];
     const [bLat, bLng] = clean[i];
-    if (Math.abs(aLat - bLat) > 0.00002 || Math.abs(aLng - bLng) > 0.00002) {
+    if (Math.abs(aLat - bLat) > 0.00005 || Math.abs(aLng - bLng) > 0.00005) {
       deduped.push(clean[i]);
     }
   }
@@ -51,11 +51,15 @@ export async function snapTrailToRoads(latLngPoints) {
     for (let i = 0; i < deduped.length; i += CHUNK - 1) {
       const chunk = deduped.slice(i, i + CHUNK);
       if (chunk.length < 2) break;
-      const part = await matchChunk(chunk);
-      if (snapped.length && part.length) {
-        snapped.push(...part.slice(1));
+      const part = await matchChunk(chunk).catch(() => null);
+      if (part && part.length) {
+        if (snapped.length) {
+          snapped.push(...part.slice(1));
+        } else {
+          snapped.push(...part);
+        }
       } else {
-        snapped.push(...part);
+        snapped.push(...chunk);
       }
     }
     return snapped.length >= 2 ? snapped : clean;

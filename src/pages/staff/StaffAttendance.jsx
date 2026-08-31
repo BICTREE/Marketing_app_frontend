@@ -31,16 +31,22 @@ L.Marker.prototype.options.icon = DefaultIcon;
 const ChangeMapCenter = ({ branchLat, branchLng, userLat, userLng }) => {
   const map = useMap();
   useEffect(() => {
+    if (!map) return;
     const points = [];
-    if (branchLat && branchLng) points.push([branchLat, branchLng]);
-    if (userLat && userLng) points.push([userLat, userLng]);
+    if (branchLat && branchLng) points.push([Number(branchLat), Number(branchLng)]);
+    if (userLat && userLng) points.push([Number(userLat), Number(userLng)]);
+    const validPoints = points.filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
     
-    if (points.length === 2) {
-      const bounds = L.latLngBounds(points);
-      map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 });
-    } else if (points.length === 1) {
-      map.setView(points[0], 17);
-    }
+    try {
+      if (validPoints.length === 2) {
+        const bounds = L.latLngBounds(validPoints);
+        if (bounds.isValid()) {
+          map.fitBounds(bounds, { padding: [50, 50], maxZoom: 16, animate: false });
+        }
+      } else if (validPoints.length === 1) {
+        map.setView(validPoints[0], 17, { animate: false });
+      }
+    } catch {}
   }, [branchLat, branchLng, userLat, userLng, map]);
   return null;
 };
