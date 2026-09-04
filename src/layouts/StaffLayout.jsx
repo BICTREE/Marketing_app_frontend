@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Users, MapPin, CalendarCheck, LogOut, Gem, User, PhoneCall
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { BinduWordmark } from '@/components/BinduLogo';
 
 import NotificationBell from '../components/NotificationBell';
 
@@ -40,17 +41,7 @@ const StaffLayout = () => {
       
       {/* Top Header */}
       <header className="bg-white border-b border-gray-200 p-4 sticky top-0 z-20 flex justify-between items-center shadow-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[#C9972A]/15 text-[#8B6914] flex items-center justify-center">
-            <Gem size={16} />
-          </div>
-          <div>
-            <h1 className="font-bold text-gray-900 leading-tight">Bindu Jewellery</h1>
-            <p className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
-              Staff Portal
-            </p>
-          </div>
-        </div>
+        <BinduWordmark subtitle="Staff portal" markSize={36} />
         
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center gap-1 mx-4 overflow-x-auto max-w-[60vw]">

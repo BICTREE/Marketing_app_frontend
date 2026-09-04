@@ -21,14 +21,14 @@ import toast from 'react-hot-toast';
 import { format } from 'date-fns';
 import useAuth from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
+import { BinduMark, BINDU_LOGO } from '@/components/BinduLogo';
 
-const LOGO = 'https://marketing.bindujewellery.com/logo-gold.png';
 const listFrom = (data) => data?.results || data || [];
 
 const EmailFrame = ({ html, subject }) => (
   <div className="rounded-xl border border-[#E8D5A3] overflow-hidden bg-[#FAF6EE] shadow-sm">
     <div className="flex items-center gap-2 px-3 py-2 bg-[#0F172A]">
-      <img src={LOGO} alt="" className="h-5 w-5 object-contain" />
+      <img src={BINDU_LOGO} alt="" className="h-5 w-5 object-contain" />
       <p className="text-[11px] text-[#C9972A] truncate font-medium">{subject || 'Email preview'}</p>
     </div>
     <iframe
@@ -68,6 +68,7 @@ const MessagesCenter = () => {
     audience: 'all',
     user_ids: [],
   });
+  const [sendingDigest, setSendingDigest] = useState(false);
 
   const { data: logsData, isLoading: logsLoading, refetch: refetchLogs } = useQuery({
     queryKey: ['email-logs', search],
@@ -183,9 +184,11 @@ const MessagesCenter = () => {
     mutationFn: (payload) => api.post('/notifications/scheduled-notices/send-now/', payload),
     onSuccess: (res) => {
       const r = res.data?.result || {};
-      toast.success(`Sent. In-app ${r.in_app || 0}, email ${r.email || 0}`);
-      queryClient.invalidateQueries({ queryKey: ['email-logs'] });
+      toast.success(r.queued
+        ? (res.data?.message || 'Sending in the background. Check Sent mail in a moment.')
+        : `Sent. In-app ${r.in_app || 0}, email ${r.email || 0}`);
       queryClient.invalidateQueries({ queryKey: ['scheduled-notices'] });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ['email-logs'] }), r.queued ? 8000 : 0);
       setSendForm({ title: '', body: '', send_in_app: true, send_email: true, audience: 'all', user_ids: [] });
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Send failed'),
@@ -195,9 +198,11 @@ const MessagesCenter = () => {
     mutationFn: (id) => api.post(`/notifications/scheduled-notices/${id}/send-now/`),
     onSuccess: (res) => {
       const r = res.data?.result || {};
-      toast.success(`Sent. In-app ${r.in_app || 0}, email ${r.email || 0}`);
+      toast.success(r.queued
+        ? (res.data?.message || 'Sending in the background. Check Sent mail in a moment.')
+        : `Sent. In-app ${r.in_app || 0}, email ${r.email || 0}`);
       queryClient.invalidateQueries({ queryKey: ['scheduled-notices'] });
-      queryClient.invalidateQueries({ queryKey: ['email-logs'] });
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: ['email-logs'] }), r.queued ? 8000 : 0);
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Send failed'),
   });
@@ -259,7 +264,7 @@ const MessagesCenter = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <img src={LOGO} alt="Bindu Jewellery" className="h-12 w-12 object-contain" />
+        <BinduMark size={48} />
         <div>
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
             Mail & Alerts
@@ -309,17 +314,28 @@ const MessagesCenter = () => {
             </Button>
             <Button
               className="bg-[#C9972A] hover:bg-[#7A5500] text-white"
+              disabled={sendingDigest}
               onClick={async () => {
+                setSendingDigest(true);
                 try {
                   const res = await api.post('/accounts/trigger-daily-emails/', { force: true });
-                  toast.success(`Digest sent to ${res.data?.result?.sent || 0} staff`);
-                  refetchLogs();
+                  const queued = res.data?.result?.queued;
+                  const sent = res.data?.result?.sent;
+                  toast.success(
+                    queued
+                      ? (res.data?.message || 'Digest queued. Staff will receive it shortly.')
+                      : `Digest sent to ${sent || 0} staff`
+                  );
+                  setTimeout(() => refetchLogs(), queued ? 8000 : 0);
                 } catch {
                   toast.error('Could not send digest now');
+                } finally {
+                  setSendingDigest(false);
                 }
               }}
             >
-              <Send size={14} className="mr-2" /> Send digest now
+              {sendingDigest ? <Loader2 size={14} className="mr-2 animate-spin" /> : <Send size={14} className="mr-2" />}
+              {sendingDigest ? 'Queuing…' : 'Send digest now'}
             </Button>
           </div>
         </CardContent>

@@ -165,7 +165,13 @@ const TeamPage = () => {
     setIsTriggeringDigest(true);
     try {
       const res = await api.post('/accounts/trigger-daily-emails/', { force: true });
-      toast.success(`Digest trigger completed! ${res.data?.result?.sent || 0} emails sent.`);
+      const queued = res.data?.result?.queued;
+      const sent = res.data?.result?.sent;
+      toast.success(
+        queued
+          ? (res.data?.message || 'Digest queued. Staff will receive it shortly.')
+          : `Digest trigger completed! ${sent || 0} emails sent.`
+      );
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to trigger morning emails.');
     } finally {

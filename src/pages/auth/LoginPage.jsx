@@ -8,7 +8,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Mail, ArrowLeft, Loader2, RefreshCw, Eye, EyeOff, Gem } from 'lucide-react';
+import { ShieldCheck, Mail, ArrowLeft, Loader2, RefreshCw, Eye, EyeOff } from 'lucide-react';
+import { BinduMark } from '@/components/BinduLogo';
 import toast from 'react-hot-toast';
 import authService from '../../services/authService';
 
@@ -100,18 +101,18 @@ const LoginPage = () => {
 
   return (
     <div className="w-full space-y-6">
-      {/* Logo + Brand */}
-      <div className="text-center space-y-3">
+      <div className="text-center space-y-4">
         <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-[#C9972A]/15 text-[#8B6914] flex items-center justify-center shadow-sm">
-            <Gem size={28} />
-          </div>
+          <BinduMark size={88} className="rounded-2xl shadow-md" />
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
             Bindu Jewellery
           </h1>
-          <p className="text-sm text-muted-foreground font-medium">Marketing App — Business Growth System</p>
+          <p className="text-[11px] uppercase tracking-[0.22em] font-semibold text-[#C9972A] mt-1">
+            Marketing app
+          </p>
+          <p className="text-sm text-muted-foreground font-medium mt-1">Sign in to your business workspace</p>
         </div>
       </div>
 

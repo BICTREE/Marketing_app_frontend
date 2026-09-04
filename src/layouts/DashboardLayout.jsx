@@ -3,13 +3,14 @@ import { Outlet, NavLink, useNavigate, useLocation, Link } from 'react-router-do
 import useAuth from '../hooks/useAuth';
 import { 
   LayoutDashboard, Users, MapPin, Phone, DollarSign, 
-  Megaphone, Bell, Settings, LogOut, FileText, 
-  CalendarCheck, Menu, X, Gem, User, Mail
+  Megaphone, Settings, LogOut, FileText, 
+  CalendarCheck, Menu, X, User, Mail
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import AdminAIAssistant from '../components/AdminAIAssistant';
 import NotificationBell from '../components/NotificationBell';
+import { BinduWordmark, BinduMark } from '@/components/BinduLogo';
 
 const DashboardLayout = () => {
   const { user, logout, isOwner, isManager, isStaff, dashboardPath, hasPermission } = useAuth();
@@ -46,12 +47,7 @@ const DashboardLayout = () => {
       
       {/* Mobile Header */}
       <div className="md:hidden flex items-center justify-between bg-card border-b border-border p-4 sticky top-0 z-20">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[#C9972A]/15 text-[#8B6914] flex items-center justify-center">
-            <Gem size={16} />
-          </div>
-          <span className="font-bold text-foreground">Bindu Jewellery</span>
-        </div>
+        <BinduWordmark subtitle={user?.role ? `${user.role} portal` : ''} markSize={32} />
         <div className="flex items-center gap-2">
           <NotificationBell className="p-1" />
           <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="text-foreground p-1">
@@ -73,17 +69,14 @@ const DashboardLayout = () => {
         "fixed md:static inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out flex flex-col h-full md:translate-x-0",
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="p-5 border-b border-border hidden md:flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#C9972A]/15 text-[#8B6914] flex items-center justify-center shadow-sm">
-            <Gem size={20} />
-          </div>
-          <div>
-            <h1 className="font-bold text-foreground leading-tight tracking-tight" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Bindu Jewellery
-            </h1>
-            <p className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
-              {user?.role} Portal
-            </p>
+        <div className="border-b border-[#E8D5A3]">
+          <div className="h-1 bg-gradient-to-r from-[#0F172A] via-[#C9972A] to-[#0F172A]" />
+          <div className="p-5">
+            <BinduWordmark
+              to={dashboardPath}
+              subtitle={user?.role ? `${String(user.role).replaceAll('_', ' ')} portal` : 'Portal'}
+              markSize={44}
+            />
           </div>
         </div>
 
@@ -136,7 +129,13 @@ const DashboardLayout = () => {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 h-[calc(100vh-65px)] md:h-screen overflow-hidden">
         {/* Top Header */}
-        <header className="hidden md:flex h-16 items-center justify-end px-8 bg-card border-b border-border/50 shrink-0">
+        <header className="hidden md:flex h-16 items-center justify-between px-8 bg-card border-b border-[#E8D5A3]/70 shrink-0">
+          <div className="flex items-center gap-2 text-[#8B6914]">
+            <BinduMark size={22} className="rounded-lg" />
+            <span className="text-xs font-semibold tracking-[0.18em] uppercase hidden lg:inline">
+              Bindu Jewellery
+            </span>
+          </div>
           <div className="flex items-center gap-4">
             <NotificationBell />
             <Link to="/profile" className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-muted">

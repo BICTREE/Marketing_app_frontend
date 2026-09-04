@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { Gem, ChevronDown, User, Menu, X } from 'lucide-react';
+import { ChevronDown, User, Menu, X } from 'lucide-react';
+import { BinduWordmark } from '@/components/BinduLogo';
 
 const Layout = () => {
     const { user, logout } = useAuth();
@@ -20,9 +21,8 @@ const Layout = () => {
     return (
         <div className="app-container">
             <header className="top-nav">
-                <div className="nav-brand" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Gem size={20} color="#C9972A" />
-                    Bindu Jewellery
+                <div className="nav-brand">
+                    <BinduWordmark markSize={32} />
                 </div>
                 
                 {/* Mobile Menu Toggle */}
