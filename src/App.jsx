@@ -38,6 +38,7 @@ const ReportsPage = lazy(() => import('./pages/reports/ReportsPage'));
 const NotificationsPage = lazy(() => import('./pages/notifications/NotificationsPage'));
 const ProfilePage = lazy(() => import('./pages/profile/ProfilePage'));
 const Followups = lazy(() => import('./pages/Followups'));
+const MessagesCenter = lazy(() => import('./pages/messages/MessagesCenter'));
 
 // Staff Pages
 const StaffLayout = lazy(() => import('./layouts/StaffLayout'));
@@ -120,6 +121,7 @@ const AppRoutes = () => {
           <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/followups" element={<ProtectedRoute permission="followups:view"><Followups /></ProtectedRoute>} />
+          <Route path="/messages" element={<ProtectedRoute allowedRoles={['owner', 'admin']}><MessagesCenter /></ProtectedRoute>} />
         </Route>
 
         <Route element={<ProtectedRoute allowedRoles={['staff', 'telecaller', 'field_staff', 'custom']}><StaffLayout /></ProtectedRoute>}>

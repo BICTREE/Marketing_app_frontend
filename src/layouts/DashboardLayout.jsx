@@ -4,7 +4,7 @@ import useAuth from '../hooks/useAuth';
 import { 
   LayoutDashboard, Users, MapPin, Phone, DollarSign, 
   Megaphone, Bell, Settings, LogOut, FileText, 
-  CalendarCheck, Menu, X, Gem, User
+  CalendarCheck, Menu, X, Gem, User, Mail
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -30,12 +30,14 @@ const DashboardLayout = () => {
     { label: 'Sales', icon: DollarSign, path: '/sales', permission: 'sales:view' },
     { label: 'Campaigns', icon: Megaphone, path: '/campaigns', permission: 'campaigns:view', hideForOwner: true },
     { label: 'Team', icon: Users, path: '/team', permission: 'staff:view' },
+    { label: 'Mail & Alerts', icon: Mail, path: '/messages', permission: 'dashboard:view', ownerOnly: true },
     { label: 'Branches', icon: MapPin, path: '/branches', permission: 'branches:view' },
     { label: 'Reports', icon: FileText, path: '/reports', permission: 'reports:view' },
     { label: 'Attendance', icon: CalendarCheck, path: '/attendance', permission: 'attendance:view' },
     { label: 'Field Visits', icon: MapPin, path: '/field-visits', permission: 'field_visits:view' },
   ].filter(item => {
     if (item.hideForOwner && isOwner) return false;
+    if (item.ownerOnly && !isOwner) return false;
     return hasPermission(item.permission);
   });
 
