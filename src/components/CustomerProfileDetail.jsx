@@ -211,7 +211,7 @@ const ProfileAttributesTab = ({ customer, customerId }) => {
   const patchMutation = useMutation({
     mutationFn: (data) => api.patch(`/leads/customers/${customerId}/`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['customer', customerId]);
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
       setEditingKey(null);
       toast.success('Profile attribute updated!');
     },
@@ -361,7 +361,7 @@ const CustomerProfileDetail = ({ customerId }) => {
     onSuccess: (res) => {
       toast.success(res.data?.detail || 'Manager note saved successfully!');
       setManagerNotes('');
-      queryClient.invalidateQueries(['customer', customerId]);
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to save decision.');
@@ -373,7 +373,7 @@ const CustomerProfileDetail = ({ customerId }) => {
     mutationFn: (newTemp) => api.patch(`/leads/customers/${customerId}/`, { temperature: newTemp }),
     onSuccess: () => {
       toast.success('Customer priority temperature updated!');
-      queryClient.invalidateQueries(['customer', customerId]);
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
     }
   });
 
@@ -384,7 +384,7 @@ const CustomerProfileDetail = ({ customerId }) => {
       toast.success(res.data?.detail || 'Lead reassigned to staff!');
       setSelectedLeadForReassign(null);
       setNewStaffId('');
-      queryClient.invalidateQueries(['customer', customerId]);
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Reassignment failed.')
   });
@@ -392,7 +392,7 @@ const CustomerProfileDetail = ({ customerId }) => {
   const updateMutation = useMutation({
     mutationFn: (data) => api.patch(`/leads/customers/${customerId}/`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['customer', customerId]);
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
       setIsEditing(false);
       toast.success('Profile updated successfully!');
     },

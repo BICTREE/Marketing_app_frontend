@@ -91,8 +91,8 @@ const Followups = () => {
     onSuccess: () => {
       toast.success('Follow-up rescheduled! Activity logged to lead profile.');
       setIsEditModalOpen(false);
-      queryClient.invalidateQueries(['followups']);
-      queryClient.invalidateQueries(['customer']);
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
+      queryClient.invalidateQueries({ queryKey: ['customer'] });
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Failed to update follow-up.')
   });
@@ -103,8 +103,8 @@ const Followups = () => {
     onSuccess: () => {
       toast.success('Follow-up cancelled! Logged to lead profile.');
       setIsCancelModalOpen(false);
-      queryClient.invalidateQueries(['followups']);
-      queryClient.invalidateQueries(['customer']);
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
+      queryClient.invalidateQueries({ queryKey: ['customer'] });
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Failed to cancel follow-up.')
   });
@@ -121,8 +121,8 @@ const Followups = () => {
       toast.success('Task returned to manager with your issue note.');
       setIsIssueModalOpen(false);
       setIssueNote('');
-      queryClient.invalidateQueries(['followups']);
-      queryClient.invalidateQueries(['staff-followups']);
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
+      queryClient.invalidateQueries({ queryKey: ['staff-followups'] });
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Failed to report issue.');
     } finally {
@@ -171,7 +171,7 @@ const Followups = () => {
     onSuccess: () => {
       toast.success('Follow-up assigned successfully');
       setIsAssignModalOpen(false);
-      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
     },
     onError: () => toast.error('Failed to assign follow-up')
   });
@@ -188,7 +188,7 @@ const Followups = () => {
       toast.success('Follow-up completed');
       setIsCompleteModalOpen(false);
       setFollowupToComplete(null);
-      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
     },
     onError: () => toast.error('Failed to complete follow-up')
   });
@@ -203,7 +203,7 @@ const Followups = () => {
     mutationFn: (date) => api.post('/leads/followups/bulk-auto-assign/', { date }),
     onSuccess: (res) => {
       toast.success(res.data.detail);
-      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
     },
     onError: () => toast.error('Failed to perform bulk assignment')
   });

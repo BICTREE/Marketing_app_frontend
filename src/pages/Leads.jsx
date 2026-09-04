@@ -297,7 +297,7 @@ const Leads = () => {
   const createMutation = useMutation({
     mutationFn: (data) => api.post('/leads/leads/', data),
     onSuccess: () => {
-      queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
       setIsAddModalOpen(false);
       reset();
       setPhoneLookup(null);

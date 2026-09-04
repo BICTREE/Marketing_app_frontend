@@ -13,7 +13,7 @@ const authService = {
     if (res.data.require_otp) {
       return {
         require_otp: true,
-        email: res.data.email,
+        email,
         masked_email: res.data.masked_email,
         message: res.data.message
       };
@@ -128,7 +128,8 @@ const authService = {
     switch (r) {
       case 'admin':
       case 'owner':   return '/admin/dashboard';
-      case 'manager': return '/manager/dashboard';
+      case 'manager':
+      case 'sub_manager': return '/manager/dashboard';
       default:        return '/staff/dashboard';
     }
   },

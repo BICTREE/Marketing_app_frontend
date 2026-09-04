@@ -77,7 +77,7 @@ const StaffFieldVisits = () => {
     mutationFn: (newVisit) => api.post('/field-visits/field-visits/', newVisit),
     onSuccess: () => {
       toast.success('Field visit created successfully!');
-      queryClient.invalidateQueries(['staff-fieldvisits']);
+      queryClient.invalidateQueries({ queryKey: ['staff-fieldvisits'] });
       setIsCreateOpen(false);
       setSelectedLeadId('');
     },
@@ -125,7 +125,7 @@ const StaffFieldVisits = () => {
     },
     onSuccess: () => {
       toast.success('Field visit started!');
-      queryClient.invalidateQueries(['staff-fieldvisits']);
+      queryClient.invalidateQueries({ queryKey: ['staff-fieldvisits'] });
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to start visit. Check location permissions.');
@@ -142,7 +142,7 @@ const StaffFieldVisits = () => {
     },
     onSuccess: () => {
       toast.success('Location check-in recorded!');
-      queryClient.invalidateQueries(['staff-fieldvisits']);
+      queryClient.invalidateQueries({ queryKey: ['staff-fieldvisits'] });
     }
   });
 
@@ -153,7 +153,7 @@ const StaffFieldVisits = () => {
     },
     onSuccess: () => {
       toast.success('Reached client! Location saved to profile.');
-      queryClient.invalidateQueries(['staff-fieldvisits']);
+      queryClient.invalidateQueries({ queryKey: ['staff-fieldvisits'] });
     },
     onError: (error) => {
       if (error.response?.status === 404) {
@@ -177,7 +177,7 @@ const StaffFieldVisits = () => {
     },
     onSuccess: () => {
       toast.success('Field visit completed!');
-      queryClient.invalidateQueries(['staff-fieldvisits']);
+      queryClient.invalidateQueries({ queryKey: ['staff-fieldvisits'] });
       setIsCompleteOpen(false);
       setCompleteForm({ outcome: 'interested', notes: '', expected_grams: '', is_advance_booking: false, needs_followup: false, followup_type: 'call', followup_date: '', followup_notes: '' });
     }

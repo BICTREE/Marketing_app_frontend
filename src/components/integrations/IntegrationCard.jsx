@@ -101,8 +101,8 @@ const IntegrationCard = ({ integration, days = 7, refetch, onConnect }) => {
     mutationFn: ({ property_id, property_name }) => 
       api.post(`/campaigns/integrations/${integration.id}/select-property/`, { property_id, property_name }),
     onSuccess: () => {
-      queryClient.invalidateQueries(['integrations']);
-      queryClient.invalidateQueries(['integration-analytics', integration.id]);
+      queryClient.invalidateQueries({ queryKey: ['integrations'] });
+      queryClient.invalidateQueries({ queryKey: ['integration-analytics', integration.id] });
       if (refetch) refetch();
     }
   });

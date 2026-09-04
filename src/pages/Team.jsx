@@ -187,8 +187,8 @@ const TeamPage = () => {
     },
     onSuccess: (data) => {
       toast.success(`Email notifications for ${data.full_name} set to ${data.email_notifications_enabled ? 'ENABLED' : 'DISABLED'}.`);
-      queryClient.invalidateQueries(['team']);
-      queryClient.invalidateQueries(['admin-team']);
+      queryClient.invalidateQueries({ queryKey: ['team'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-team'] });
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to update email setting.');

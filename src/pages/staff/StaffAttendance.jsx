@@ -164,7 +164,7 @@ const StaffAttendance = () => {
     onSuccess: (data) => {
       const msg = data.data.message || 'Checked in successfully!';
       toast.success(msg);
-      queryClient.invalidateQueries(['staff-attendance-today']);
+      queryClient.invalidateQueries({ queryKey: ['staff-attendance-today'] });
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Check-in failed')
   });
@@ -176,7 +176,7 @@ const StaffAttendance = () => {
     },
     onSuccess: () => {
       toast.success('Shift completed. Great job today!');
-      queryClient.invalidateQueries(['staff-attendance-today']);
+      queryClient.invalidateQueries({ queryKey: ['staff-attendance-today'] });
     },
     onError: (err) => toast.error(err.response?.data?.detail || 'Check-out failed')
   });
@@ -185,7 +185,7 @@ const StaffAttendance = () => {
     mutationFn: (reason) => api.post('/attendance/attendance/break-start/', { reason }),
     onSuccess: () => {
       toast.success('Break started. Enjoy your rest!');
-      queryClient.invalidateQueries(['staff-attendance-today']);
+      queryClient.invalidateQueries({ queryKey: ['staff-attendance-today'] });
     }
   });
 
@@ -193,7 +193,7 @@ const StaffAttendance = () => {
     mutationFn: () => api.post('/attendance/attendance/break-end/'),
     onSuccess: () => {
       toast.success('Welcome back! Break ended.');
-      queryClient.invalidateQueries(['staff-attendance-today']);
+      queryClient.invalidateQueries({ queryKey: ['staff-attendance-today'] });
     }
   });
 

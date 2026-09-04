@@ -107,8 +107,8 @@ const NotificationsPage = () => {
       toast.success(res.data?.detail || 'Manager decision recorded successfully!');
       setSelectedReviewNotif(null);
       setManagerNotes('');
-      queryClient.invalidateQueries(['notifications']);
-      queryClient.invalidateQueries(['leads']);
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to record decision.');

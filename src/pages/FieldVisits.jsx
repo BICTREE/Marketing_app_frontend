@@ -426,8 +426,10 @@ const FieldVisitsPage = () => {
     const connectWs = () => {
       try {
         setWsStatus('connecting');
-        const token = localStorage.getItem('token') || localStorage.getItem('access_token');
-        const wsUrl = `wss://apimarketing.bindujewellery.com/ws/live-tracking/${token ? '?token=' + encodeURIComponent(token) : ''}`;
+        const token = localStorage.getItem('access_token') || localStorage.getItem('token');
+        const apiBase = import.meta.env.VITE_API_BASE_URL || 'https://apimarketing.bindujewellery.com/api/v1';
+        const wsOrigin = apiBase.replace(/\/api\/v1\/?$/, '').replace(/^http/, 'ws');
+        const wsUrl = `${wsOrigin}/ws/live-tracking/${token ? '?token=' + encodeURIComponent(token) : ''}`;
         ws = new WebSocket(wsUrl);
 
         ws.onopen = () => {

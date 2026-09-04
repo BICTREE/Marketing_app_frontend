@@ -43,7 +43,7 @@ export default function CustomerQuickActions({ customer }) {
   const visitMutation = useMutation({
     mutationFn: (d) => api.post('/field-visits/field-visits/', d),
     onSuccess: () => {
-      queryClient.invalidateQueries(['fieldvisits']);
+      queryClient.invalidateQueries({ queryKey: ['fieldvisits'] });
       setVisitForm({ staff: '', scheduled_date: '', notes: '' });
       setPanel(null);
       toast.success('Field visit assigned successfully!');
@@ -55,8 +55,8 @@ export default function CustomerQuickActions({ customer }) {
   const reminderMutation = useMutation({
     mutationFn: (d) => api.post('/leads/followups/', d),
     onSuccess: () => {
-      queryClient.invalidateQueries(['customer', customer.id]);
-      queryClient.invalidateQueries(['followups']);
+      queryClient.invalidateQueries({ queryKey: ['customer', customer.id] });
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
       setReminder({ date: '', note: '', type: 'call', priority: 'medium', assigned_to: '' });
       setPanel(null);
       flash('Follow-up scheduled & assigned!');
@@ -68,7 +68,7 @@ export default function CustomerQuickActions({ customer }) {
   const noteMutation = useMutation({
     mutationFn: (d) => api.post(`/leads/customers/${customer.id}/add-timeline-event/`, d),
     onSuccess: () => {
-      queryClient.invalidateQueries(['customer', customer.id]);
+      queryClient.invalidateQueries({ queryKey: ['customer', customer.id] });
       setNote('');
       setPanel(null);
       flash('Note added!');
