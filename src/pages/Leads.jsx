@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import useAuth from '../hooks/useAuth';
-import { permissionDeniedMessage } from '../lib/permissions';
+import { getApiErrorMessage, permissionDeniedMessage } from '../lib/permissions';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend
@@ -137,7 +137,7 @@ const Leads = () => {
   const [selectedSource, setSelectedSource] = useState('all');
   const [selectedSegment, setSelectedSegment] = useState('all');
   const [selectedStaff, setSelectedStaff] = useState('all');
-  const [timeRange, setTimeRange] = useState('month');
+  const [timeRange, setTimeRange] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showFilters, setShowFilters] = useState(false);
@@ -159,6 +159,17 @@ const Leads = () => {
   });
 
   const queryClient = useQueryClient();
+
+  const userStr = localStorage.getItem('user');
+  const user = authUser || (userStr ? JSON.parse(userStr) : null);
+  const isAdmin = user?.role === 'owner' || user?.role === 'admin';
+  const isManager = user?.role === 'manager' || user?.role === 'sub_manager';
+  const isStaff = !isAdmin && !isManager;
+  const isStaffView = window.location.pathname.startsWith('/staff');
+  const pathPrefix = isStaffView ? '/staff/leads' : '/leads';
+  const canAddLead = hasPermission('leads:create');
+  const canScheduleFollowup = hasPermission('followups:view') || hasPermission('leads:edit') || hasPermission('leads:create');
+  const canViewStaff = hasPermission('staff:view');
 
   const createFollowUpMutation = useMutation({
     mutationFn: async (payload) => {
@@ -208,7 +219,7 @@ const Leads = () => {
       });
     },
     onError: (err) => {
-      toast.error(err.response?.data?.detail || err.message || 'Failed to schedule follow-up');
+      toast.error(getApiErrorMessage(err, err.message || 'Failed to schedule follow-up'));
     }
   });
 
@@ -221,16 +232,6 @@ const Leads = () => {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [canAddLead]);
-
-  const userStr = localStorage.getItem('user');
-  const user = authUser || (userStr ? JSON.parse(userStr) : null);
-  const isAdmin = user?.role === 'owner' || user?.role === 'admin';
-  const isManager = user?.role === 'manager' || user?.role === 'sub_manager';
-  const isStaff = !isAdmin && !isManager;
-  const isStaffView = window.location.pathname.startsWith('/staff');
-  const pathPrefix = isStaffView ? '/staff/leads' : '/leads';
-  const canAddLead = hasPermission('leads:create');
-  const canScheduleFollowup = hasPermission('followups:view') || hasPermission('leads:edit') || hasPermission('leads:create');
 
   // Fetch segments for filtering
   const { data: segmentsData } = useQuery({
@@ -245,10 +246,11 @@ const Leads = () => {
     enabled: isAdmin
   });
 
-  // Fetch team members for filtering
+  // Staff list is only for filters / follow-up assignment — skip if Team view is off.
   const { data: teamData } = useQuery({
     queryKey: ['team'],
-    queryFn: () => api.get('/accounts/users/').then(res => res.data.results || res.data)
+    queryFn: () => api.get('/accounts/users/').then(res => res.data.results || res.data),
+    enabled: canViewStaff || isAdmin || isManager,
   });
 
   const { data: leadsResponse, isLoading } = useQuery({
@@ -303,13 +305,14 @@ const Leads = () => {
     mutationFn: (data) => api.post('/leads/leads/', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['leads-summary'] });
       setIsAddModalOpen(false);
       reset();
       setPhoneLookup(null);
+      toast.success('Lead added');
     },
     onError: (error) => {
-      console.error('Lead creation error:', error.response?.data || error.message);
-      alert(`Error creating lead: ${JSON.stringify(error.response?.data || 'Unknown error')}`);
+      toast.error(getApiErrorMessage(error, 'Could not create this lead. Please try again.'));
     }
   });
 
@@ -467,7 +470,7 @@ const Leads = () => {
           <h1 className="text-2xl font-bold text-gray-900">Leads</h1>
           <p className="text-sm text-gray-500">{totalLeadsCount} total leads</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="relative hidden sm:block">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
@@ -846,7 +849,7 @@ const Leads = () => {
                 setSelectedSegment('all');
                 setSelectedStaff('all');
                 setSelectedBranch('all');
-                setTimeRange('month');
+                setTimeRange('all');
                 setStageFilter('all');
                 setSearchTerm('');
                 setPage(1);
@@ -1021,6 +1024,7 @@ const Leads = () => {
                     {safeFormat(lead.created_at, 'MMM dd, yyyy')}
                   </td>
                   <td className="px-4 py-3 text-right">
+                    {canScheduleFollowup && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1041,6 +1045,7 @@ const Leads = () => {
                     >
                       <Clock size={12} className="mr-1" /> Follow-up
                     </Button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1087,6 +1092,7 @@ const Leads = () => {
                     <SourceBadge source={lead.source} />
                   </div>
                   <div className="flex items-center gap-2">
+                    {canScheduleFollowup && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -1107,6 +1113,7 @@ const Leads = () => {
                     >
                       <Clock size={11} className="mr-1" /> + Follow-up
                     </Button>
+                    )}
                     <p className="text-[10px] text-gray-400 flex items-center gap-1">
                       <User size={10} /> {lead.assigned_to_name || 'Unassigned'}
                     </p>

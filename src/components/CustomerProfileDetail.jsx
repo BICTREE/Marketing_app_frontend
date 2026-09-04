@@ -17,6 +17,7 @@ import { Badge } from './ui/badge';
 import { format, formatDistanceToNow } from 'date-fns';
 import { formatGrams } from '../lib/utils';
 import toast from 'react-hot-toast';
+import useAuth from '../hooks/useAuth';
 
 // ── Helpers & Constants ───────────────────────────────────────────────────────
 const STAGE_META = {
@@ -300,6 +301,7 @@ const ProfileAttributesTab = ({ customer, customerId }) => {
 // ── Main CustomerProfileDetail Component ──────────────────────────────────────
 
 const CustomerProfileDetail = ({ customerId }) => {
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('overview');
   const [timelineFilter, setTimelineFilter] = useState('all');
@@ -329,6 +331,7 @@ const CustomerProfileDetail = ({ customerId }) => {
   const { data: staffData } = useQuery({
     queryKey: ['staff-list'],
     queryFn: () => api.get('/accounts/users/').then(r => r.data.results || r.data),
+    enabled: hasPermission('staff:view') || hasPermission('leads:assign'),
   });
 
   const activeLead = customer?.leads?.[customer?.leads?.length - 1] || null;

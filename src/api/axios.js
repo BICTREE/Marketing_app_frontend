@@ -77,9 +77,14 @@ api.interceptors.response.use(
     }
 
     if (error.response?.status === 403) {
-      toast.error(getApiErrorMessage(error, "You don't have permission for this action."), {
-        id: 'perm-denied',
-      });
+      const method = (originalRequest?.method || 'get').toLowerCase();
+      // Background GETs (filters, optional lists) should not toast on every page.
+      // Mutations still tell the user why the action was blocked.
+      if (method !== 'get') {
+        toast.error(getApiErrorMessage(error, "You don't have permission for this action."), {
+          id: 'perm-denied',
+        });
+      }
     }
 
     return Promise.reject(error);
