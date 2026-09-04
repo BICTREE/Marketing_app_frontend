@@ -46,9 +46,11 @@ const Layout = () => {
                     <NavLink to="/sales" onClick={closeMenu} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
                         Sales
                     </NavLink>
+                    {user?.role !== 'owner' && user?.role !== 'admin' && (
                     <NavLink to="/campaigns" onClick={closeMenu} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>
                         Campaigns
                     </NavLink>
+                    )}
                     {user?.role === 'owner' && (
                         <>
                             <NavLink to="/team" onClick={closeMenu} className={({isActive}) => `nav-item ${isActive ? 'active' : ''}`}>

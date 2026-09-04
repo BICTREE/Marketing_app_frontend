@@ -50,6 +50,12 @@ const RootRedirect = () => {
   return <Navigate to={dashboardPath} replace />;
 };
 
+const HideCampaignsForOwner = ({ children }) => {
+  const { isOwner, dashboardPath } = useAuth();
+  if (isOwner) return <Navigate to={dashboardPath || '/admin/dashboard'} replace />;
+  return children;
+};
+
 const AppRoutes = () => {
   const { initializeAuth, setUser } = useAuthStore();
   const { isAuthenticated, user } = useAuth();
@@ -102,8 +108,8 @@ const AppRoutes = () => {
           <Route path="/leads/:id" element={<ProtectedRoute permission="leads:view"><CustomerProfile /></ProtectedRoute>} />
           <Route path="/sales" element={<ProtectedRoute permission="sales:view"><Sales /></ProtectedRoute>} />
           <Route path="/calls" element={<ProtectedRoute permission="calls:view"><Calls /></ProtectedRoute>} />
-          <Route path="/campaigns" element={<ProtectedRoute permission="campaigns:view"><Campaigns /></ProtectedRoute>} />
-          <Route path="/campaigns/settings/integrations" element={<ProtectedRoute permission="campaigns:view"><CampaignIntegrations /></ProtectedRoute>} />
+          <Route path="/campaigns" element={<HideCampaignsForOwner><ProtectedRoute permission="campaigns:view"><Campaigns /></ProtectedRoute></HideCampaignsForOwner>} />
+          <Route path="/campaigns/settings/integrations" element={<HideCampaignsForOwner><ProtectedRoute permission="campaigns:view"><CampaignIntegrations /></ProtectedRoute></HideCampaignsForOwner>} />
           <Route path="/campaigns/integrations" element={<Navigate to="/campaigns/settings/integrations" replace />} />
           <Route path="/team" element={<ProtectedRoute permission="staff:view"><Team /></ProtectedRoute>} />
           <Route path="/branches" element={<ProtectedRoute permission="branches:view"><Branches /></ProtectedRoute>} />

@@ -18,9 +18,9 @@ const QUICK_ACTIONS = [
   { icon: '👥', label: 'Lead status',        prompt: 'Give me a breakdown of leads by stage' },
   { icon: '📞', label: 'Call summary',       prompt: 'Summarize recent call outcomes' },
   { icon: '⏰', label: 'Attendance',         prompt: 'What\'s today\'s attendance status?' },
-  { icon: '📣', label: 'Campaign ROI',       prompt: 'Which campaigns have the best ROI and reach? Show campaign performance data.' },
-  { icon: '🌐', label: 'Meta Ads data',      prompt: 'Show Meta Ads and Instagram performance data from connected integrations.' },
-  { icon: '📈', label: 'Campaign leads',     prompt: 'How many leads came from campaigns this month? Break it down by channel.' },
+  { icon: '📣', label: 'Campaign ROI',       prompt: 'Which campaigns have the best ROI and reach? Show campaign performance data.', hideForOwner: true },
+  { icon: '🌐', label: 'Meta Ads data',      prompt: 'Show Meta Ads and Instagram performance data from connected integrations.', hideForOwner: true },
+  { icon: '📈', label: 'Campaign leads',     prompt: 'How many leads came from campaigns this month? Break it down by channel.', hideForOwner: true },
   { icon: '⭐', label: 'Staff performance',  prompt: 'Show me staff performance this month' },
   { icon: '🎂', label: 'Birthdays',          prompt: 'Who has upcoming birthdays in the next 30 days?' },
   { icon: '🎉', label: 'Anniversaries',      prompt: 'Any work anniversaries coming up soon?' },
@@ -371,7 +371,7 @@ const AdminAIAssistant = () => {
 
               {messages.length <= 1 && (
                 <div className="px-5 py-3 flex gap-2 overflow-x-auto no-scrollbar bg-white border-t border-gray-50">
-                  {QUICK_ACTIONS.slice(0, 6).map((action, i) => (
+                  {QUICK_ACTIONS.filter(a => !(isOwner && a.hideForOwner)).slice(0, 6).map((action, i) => (
                     <button
                       key={i}
                       onClick={() => handleSend(action.prompt)}

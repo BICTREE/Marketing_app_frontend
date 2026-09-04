@@ -28,13 +28,16 @@ const DashboardLayout = () => {
     { label: 'Follow-ups', icon: CalendarCheck, path: '/followups', permission: 'followups:view' },
     { label: 'Calls', icon: Phone, path: '/calls', permission: 'calls:view' },
     { label: 'Sales', icon: DollarSign, path: '/sales', permission: 'sales:view' },
-    { label: 'Campaigns', icon: Megaphone, path: '/campaigns', permission: 'campaigns:view' },
+    { label: 'Campaigns', icon: Megaphone, path: '/campaigns', permission: 'campaigns:view', hideForOwner: true },
     { label: 'Team', icon: Users, path: '/team', permission: 'staff:view' },
     { label: 'Branches', icon: MapPin, path: '/branches', permission: 'branches:view' },
     { label: 'Reports', icon: FileText, path: '/reports', permission: 'reports:view' },
     { label: 'Attendance', icon: CalendarCheck, path: '/attendance', permission: 'attendance:view' },
     { label: 'Field Visits', icon: MapPin, path: '/field-visits', permission: 'field_visits:view' },
-  ].filter(item => hasPermission(item.permission));
+  ].filter(item => {
+    if (item.hideForOwner && isOwner) return false;
+    return hasPermission(item.permission);
+  });
 
   return (
     <div className="min-h-screen bg-[#FAF6EE] flex flex-col md:flex-row font-sans">

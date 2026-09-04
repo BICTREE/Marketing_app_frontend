@@ -28,7 +28,7 @@ export const PERMISSION_GROUPS = [
   { group: 'Team', hint: 'Other staff in their branch.', fields: ['can_view_staff', 'can_add_staff', 'can_edit_staff', 'can_delete_staff'] },
   { group: 'Attendance', hint: 'Own punch is always available. These flags control the attendance module.', fields: ['can_view_attendance', 'can_approve_attendance'] },
   { group: 'Sales', hint: 'Gold sales they can see or record.', fields: ['can_view_sales', 'can_add_sales'] },
-  { group: 'Reports & Campaigns', hint: 'Dashboards, WhatsApp campaigns, and exports.', fields: ['can_view_reports', 'can_export_reports', 'can_view_campaigns', 'can_create_campaigns'] },
+  { group: 'Reports', hint: 'Dashboards and exports.', fields: ['can_view_reports', 'can_export_reports'] },
   { group: 'Field visits', hint: 'Live map and visit assignment.', fields: ['can_view_field_visits'] },
 ];
 

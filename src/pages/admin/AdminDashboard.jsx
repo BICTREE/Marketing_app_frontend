@@ -6,7 +6,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
-  Users, PhoneCall, DollarSign, Megaphone, TrendingUp, TrendingDown,
+  Users, PhoneCall, DollarSign, TrendingUp, TrendingDown,
   Trophy, Medal, Award, RefreshCw, Building2, Target, ArrowUpRight,
   ArrowDownRight, Zap, Activity, Clock, ChevronRight, Star,
   Camera, ThumbsUp, Globe, MessageCircle, UserPlus, MapPin, GitBranch,
@@ -214,7 +214,6 @@ const AdminDashboard = () => {
   const [selectedSource, setSelectedSource] = useState('all');
   const [selectedSegment, setSelectedSegment] = useState('all');
   const [selectedStaff, setSelectedStaff] = useState('all');
-  const [selectedCampaign, setSelectedCampaign] = useState('all');
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -234,7 +233,7 @@ const AdminDashboard = () => {
   };
 
   const { data: leadsResponse, isLoading: loadingLeads,    refetch: refetchLeads }    = useQuery({ 
-    queryKey: ['admin-leads', selectedBranch, selectedSource, selectedSegment, selectedStaff, selectedCampaign, dateRange, customStartDate, customEndDate], 
+    queryKey: ['admin-leads', selectedBranch, selectedSource, selectedSegment, selectedStaff, dateRange, customStartDate, customEndDate], 
     enabled: customDatesReady,
     queryFn: () => api.get('/leads/leads/', { 
       params: { 
@@ -242,7 +241,6 @@ const AdminDashboard = () => {
         source: selectedSource !== 'all' ? selectedSource : undefined, 
         segment: selectedSegment !== 'all' ? selectedSegment : undefined, 
         assigned_to: selectedStaff !== 'all' ? selectedStaff : undefined, 
-        campaign: selectedCampaign !== 'all' ? selectedCampaign : undefined, 
         time_range: dateRange !== 'all' && customDatesReady ? dateRange : undefined,
         start_date: dateRange === 'custom' ? customStartDate : undefined,
         end_date: dateRange === 'custom' ? customEndDate : undefined,
@@ -265,7 +263,6 @@ const AdminDashboard = () => {
       } 
     }).then(r => r.data) 
   });
-  const { data: campaignsData, isLoading: loadingCampaigns,refetch: refetchCampaigns }= useQuery({ queryKey: ['admin-campaigns'], queryFn: () => api.get('/campaigns/campaigns/').then(r => r.data.results || r.data) });
   const { data: teamData,      isLoading: loadingTeam,     refetch: refetchTeam }     = useQuery({ queryKey: ['admin-team'],      queryFn: () => api.get('/accounts/users/').then(r => r.data.results || r.data) });
   const { data: branchesData }                                                        = useQuery({ queryKey: ['branches'],         queryFn: () => api.get('/branches/').then(r => r.data.results || r.data) });
   const { data: segmentsData }                                                        = useQuery({ queryKey: ['segments'],         queryFn: () => api.get('/branches/segments/').then(r => r.data.results || r.data) });
@@ -278,10 +275,10 @@ const AdminDashboard = () => {
   const leadsData = leadsResponse?.results || [];
   const salesData = salesResponse?.results || [];
 
-  const isLoading = loadingLeads || loadingSales || loadingCampaigns || loadingTeam;
+  const isLoading = loadingLeads || loadingSales || loadingTeam;
 
   const handleRefresh = () => {
-    refetchLeads(); refetchSales(); refetchCampaigns(); refetchTeam(); refetchLive();
+    refetchLeads(); refetchSales(); refetchTeam(); refetchLive();
     setLastRefresh(new Date());
   };
 
@@ -310,9 +307,8 @@ const AdminDashboard = () => {
     if (selectedSource !== 'all') list = list.filter(l => l.source === selectedSource);
     if (selectedSegment !== 'all') list = list.filter(l => l.segment === parseInt(selectedSegment));
     if (selectedStaff !== 'all') list = list.filter(l => l.assigned_to === parseInt(selectedStaff));
-    if (selectedCampaign !== 'all') list = list.filter(l => l.campaign === parseInt(selectedCampaign));
     return list.filter(l => isWithinDateRange(l.created_at));
-  }, [leadsData, selectedBranch, dateRange, customStartDate, customEndDate, selectedSource, selectedSegment, selectedStaff, selectedCampaign]);
+  }, [leadsData, selectedBranch, dateRange, customStartDate, customEndDate, selectedSource, selectedSegment, selectedStaff]);
 
   const filteredSales = React.useMemo(() => {
     let list = salesData || [];
@@ -324,12 +320,11 @@ const AdminDashboard = () => {
   }, [salesData, selectedBranch, dateRange, customStartDate, customEndDate, selectedStaff]);
 
   // KPIs must follow the visible filters, not the unfiltered server page count.
-  const filtersActive = dateRange !== 'all' || selectedBranch !== 'all' || selectedSource !== 'all' || selectedSegment !== 'all' || selectedStaff !== 'all' || selectedCampaign !== 'all';
+  const filtersActive = dateRange !== 'all' || selectedBranch !== 'all' || selectedSource !== 'all' || selectedSegment !== 'all' || selectedStaff !== 'all';
   const totalLeads    = filtersActive ? filteredLeads.length : (leadsResponse?.count || filteredLeads.length);
   const totalSalesCount = filtersActive ? filteredSales.length : (salesResponse?.count || filteredSales.length);
   const advanceBookingsCount = filteredSales.filter(s => s.sale_type === 'advance').length;
   const totalGoldWeight = normalizeGrams(filteredSales.reduce((a, s) => a + parseFloat(s.weight_grams || s.amount || 0), 0));
-  const activeCampaigns = (campaignsData || []).filter(c => c.status === 'active').length;
   const staffCount    = (teamData || []).length;
   const convRate      = totalLeads > 0 ? ((totalSalesCount / totalLeads) * 100) : 0;
 
@@ -413,11 +408,6 @@ const AdminDashboard = () => {
       .slice(0, 8)
       .map(l => ({ name: l.name, stage: l.stage, date: new Date(l.created_at).toLocaleDateString('en-IN') })),
     [filteredLeads]);
-
-  // Campaign ROI
-  const campaignROI = React.useMemo(() =>
-    (campaignsData || []).slice(0, 5).map(c => ({ name: c.name?.substring(0, 12) + '…', roi: c.roi || 0, leads: c.leads_count || 0 })),
-    [campaignsData]);
 
   // Loading skeleton
   if (isLoading) return (
@@ -551,20 +541,6 @@ const AdminDashboard = () => {
               </select>
             </div>
 
-            <div>
-              <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Campaign</label>
-              <select
-                value={selectedCampaign}
-                onChange={e => setSelectedCampaign(e.target.value)}
-                className="w-full p-2 border rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors"
-              >
-                <option value="all">All Campaigns</option>
-                {(campaignsData || []).map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-
             {dateRange === 'custom' && (
               <>
                 <div>
@@ -594,7 +570,6 @@ const AdminDashboard = () => {
                   setSelectedSource('all');
                   setSelectedSegment('all');
                   setSelectedStaff('all');
-                  setSelectedCampaign('all');
                   setCustomStartDate('');
                   setCustomEndDate('');
                   setDateRange('all');
@@ -646,7 +621,6 @@ const AdminDashboard = () => {
           decimals={1} 
         />
         <KPICard title="Advance Bookings"  value={advanceBookingsCount} sub="Future fulfillments" icon={Calendar}   color="#8B5CF6" gradient="linear-gradient(135deg,#8B5CF6,#A78BFA)" />
-        <KPICard title="Active Campaigns"  value={activeCampaigns} sub="Currently running"     icon={Megaphone}   color="#1A5490" gradient="linear-gradient(135deg,#1A5490,#3B82F6)" />
       </div>
 
       <LiveStaffStrip locations={liveTracking || []} />
@@ -747,28 +721,8 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* ── Campaign ROI + Leaderboard + Activity ──────────────────── */}
-      <div className="chart-row-3">
-        {/* Campaign ROI */}
-        <div className="chart-card">
-          <div className="chart-card-header">
-            <div><h3 className="chart-title">Campaign ROI</h3><p className="chart-sub">Return on investment %</p></div>
-          </div>
-          <div className="chart-body">
-            {campaignROI.length > 0 ? (
-              <ResponsiveContainer width="100%" height={230} minWidth={0}>
-                <BarChart data={campaignROI}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="roi" fill="#C9972A" name="ROI %" radius={[4,4,0,0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : <EmptyChart message="No campaign data available" />}
-          </div>
-        </div>
-
+      {/* ── Leaderboard + Activity ────────────────────────────────── */}
+      <div className="chart-row-2">
         <StaffLeaderboardWidget data={leaderboard} />
         <RecentActivityWidget activities={recentActivity} />
       </div>
