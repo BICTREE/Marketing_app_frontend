@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '@/api/axios';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,15 +22,22 @@ import { format } from 'date-fns';
 import useAuth from '@/hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 
+const LOGO = 'https://marketing.bindujewellery.com/logo-gold.png';
 const listFrom = (data) => data?.results || data || [];
 
-const toLocalInput = (iso) => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+const EmailFrame = ({ html, subject }) => (
+  <div className="rounded-xl border border-[#E8D5A3] overflow-hidden bg-[#FAF6EE] shadow-sm">
+    <div className="flex items-center gap-2 px-3 py-2 bg-[#0F172A]">
+      <img src={LOGO} alt="" className="h-5 w-5 object-contain" />
+      <p className="text-[11px] text-[#C9972A] truncate font-medium">{subject || 'Email preview'}</p>
+    </div>
+    <iframe
+      title={subject || 'Email preview'}
+      className="w-full h-[520px] bg-[#FAF6EE]"
+      srcDoc={html || '<p style="padding:24px;font-family:sans-serif;color:#6b7280">Loading preview…</p>'}
+    />
+  </div>
+);
 
 const MessagesCenter = () => {
   const { isOwner, dashboardPath } = useAuth();
@@ -39,6 +46,10 @@ const MessagesCenter = () => {
   const [previewLog, setPreviewLog] = useState(null);
   const [editing, setEditing] = useState(null);
   const [draft, setDraft] = useState({});
+  const [previewStaffId, setPreviewStaffId] = useState('');
+  const [previews, setPreviews] = useState({});
+  const [sendPreview, setSendPreview] = useState(null);
+  const [noticePreview, setNoticePreview] = useState(null);
   const [noticeForm, setNoticeForm] = useState({
     title: '',
     body: '',
@@ -93,6 +104,57 @@ const MessagesCenter = () => {
   const notices = noticesData || [];
   const users = usersData || [];
   const digest = useMemo(() => templates.find((t) => t.key === 'daily_digest'), [templates]);
+
+  useEffect(() => {
+    if (!templates.length) return;
+    let cancelled = false;
+    templates.forEach((tpl) => {
+      if (editing === tpl.id) return;
+      api.get(`/notifications/templates/${tpl.id}/preview/`, {
+        params: previewStaffId ? { user_id: previewStaffId } : {},
+      }).then((r) => {
+        if (!cancelled) setPreviews((prev) => ({ ...prev, [tpl.id]: r.data }));
+      }).catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [templates, previewStaffId, editing]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const tpl = templates.find((t) => t.id === editing);
+    if (!tpl) return;
+    const handle = setTimeout(() => {
+      api.post(`/notifications/templates/${editing}/preview/`, {
+        ...draft,
+        user_id: previewStaffId || undefined,
+        title: 'Staff notice',
+        message: 'Your custom message will appear here.',
+      }).then((r) => setPreviews((prev) => ({ ...prev, [editing]: r.data }))).catch(() => {});
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [draft, editing, previewStaffId, templates]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      api.post('/notifications/scheduled-notices/preview/', {
+        title: sendForm.title || 'Staff notice',
+        body: sendForm.body || 'Your custom message will appear here.',
+        user_id: previewStaffId || undefined,
+      }).then((r) => setSendPreview(r.data)).catch(() => {});
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [sendForm.title, sendForm.body, previewStaffId]);
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      api.post('/notifications/scheduled-notices/preview/', {
+        title: noticeForm.title || 'Staff notice',
+        body: noticeForm.body || 'Your custom message will appear here.',
+        user_id: previewStaffId || undefined,
+      }).then((r) => setNoticePreview(r.data)).catch(() => {});
+    }, 400);
+    return () => clearTimeout(handle);
+  }, [noticeForm.title, noticeForm.body, previewStaffId]);
 
   const saveTemplate = useMutation({
     mutationFn: ({ id, payload }) => api.patch(`/notifications/templates/${id}/`, payload),
@@ -196,13 +258,16 @@ const MessagesCenter = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-          Mail & Alerts
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Check SMTP mail sent by the system, edit the templates staff receive, and schedule custom notices.
-        </p>
+      <div className="flex items-center gap-3">
+        <img src={LOGO} alt="Bindu Jewellery" className="h-12 w-12 object-contain" />
+        <div>
+          <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Mail & Alerts
+          </h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            See the exact Bindu email staff receive, edit the template, and send or schedule notices.
+          </p>
+        </div>
       </div>
 
       <Card>
@@ -216,7 +281,17 @@ const MessagesCenter = () => {
               {' '}Turn staff on/off from Team.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            <select
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+              value={previewStaffId}
+              onChange={(e) => setPreviewStaffId(e.target.value)}
+            >
+              <option value="">Preview as me</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.full_name}</option>
+              ))}
+            </select>
             <Button
               variant="outline"
               onClick={async () => {
@@ -250,13 +325,103 @@ const MessagesCenter = () => {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="sent" className="space-y-4">
+      <Tabs defaultValue="templates" className="space-y-4">
         <TabsList className="flex flex-wrap h-auto w-full md:w-auto">
-          <TabsTrigger value="sent" className="gap-1"><Mail size={14} /> Sent mail</TabsTrigger>
           <TabsTrigger value="templates" className="gap-1"><FileText size={14} /> Templates</TabsTrigger>
+          <TabsTrigger value="sent" className="gap-1"><Mail size={14} /> Sent mail</TabsTrigger>
           <TabsTrigger value="schedule" className="gap-1"><Clock size={14} /> Schedule</TabsTrigger>
           <TabsTrigger value="send" className="gap-1"><Send size={14} /> Send now</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="templates">
+          {templatesLoading ? (
+            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#C9972A]" /></div>
+          ) : (
+            <div className="grid gap-6">
+              <p className="text-xs text-muted-foreground">
+                This is the email staff actually receive, with the Bindu logo. Placeholders: {'{first_name}'}, {'{full_name}'}, {'{date}'}, {'{short_date}'}, {'{title}'}, {'{body}'}.
+              </p>
+              {templates.map((tpl) => (
+                <Card key={tpl.id} className="overflow-hidden">
+                  <CardHeader className="flex flex-row items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-lg">{tpl.name}</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1">{tpl.key.replaceAll('_', ' ')}</p>
+                    </div>
+                    {editing === tpl.id ? (
+                      <Button
+                        className="bg-[#C9972A] hover:bg-[#7A5500] text-white"
+                        disabled={saveTemplate.isPending}
+                        onClick={() => saveTemplate.mutate({ id: tpl.id, payload: draft })}
+                      >
+                        {saveTemplate.isPending ? <Loader2 className="animate-spin mr-2" size={14} /> : <Save size={14} className="mr-2" />}
+                        Save
+                      </Button>
+                    ) : (
+                      <Button variant="outline" onClick={() => startEdit(tpl)}>Edit copy</Button>
+                    )}
+                  </CardHeader>
+                  <CardContent className="grid lg:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                      {editing === tpl.id ? (
+                        <>
+                          <div className="grid md:grid-cols-2 gap-3">
+                            <div>
+                              <Label>Subject</Label>
+                              <Input value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />
+                            </div>
+                            {tpl.key === 'daily_digest' && (
+                              <div className="flex gap-3">
+                                <div className="flex-1">
+                                  <Label>Send hour (IST)</Label>
+                                  <Input type="number" min={0} max={23} value={draft.send_hour} onChange={(e) => setDraft({ ...draft, send_hour: Number(e.target.value) })} />
+                                </div>
+                                <div className="flex-1">
+                                  <Label>Minute</Label>
+                                  <Input type="number" min={0} max={59} value={draft.send_minute} onChange={(e) => setDraft({ ...draft, send_minute: Number(e.target.value) })} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <Label>Greeting</Label>
+                            <Textarea rows={3} value={draft.greeting} onChange={(e) => setDraft({ ...draft, greeting: e.target.value })} />
+                          </div>
+                          <div>
+                            <Label>Extra message</Label>
+                            <Textarea rows={3} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
+                          </div>
+                          {tpl.key === 'daily_digest' && (
+                            <div>
+                              <Label>Birthday note</Label>
+                              <Textarea rows={2} value={draft.birthday_note} onChange={(e) => setDraft({ ...draft, birthday_note: e.target.value })} />
+                            </div>
+                          )}
+                          <div>
+                            <Label>Footer / sign-off</Label>
+                            <Textarea rows={3} value={draft.footer} onChange={(e) => setDraft({ ...draft, footer: e.target.value })} />
+                          </div>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input type="checkbox" checked={!!draft.is_active} onChange={(e) => setDraft({ ...draft, is_active: e.target.checked })} />
+                            Active
+                          </label>
+                        </>
+                      ) : (
+                        <div className="text-sm space-y-2 rounded-lg border border-border p-4 bg-card">
+                          <p><span className="text-muted-foreground">Subject:</span> {tpl.subject || '—'}</p>
+                          <p className="whitespace-pre-wrap"><span className="text-muted-foreground">Greeting:</span> {tpl.greeting || '—'}</p>
+                          {tpl.body ? <p className="whitespace-pre-wrap">{tpl.body}</p> : null}
+                          <p className="whitespace-pre-wrap text-muted-foreground">{tpl.footer}</p>
+                        </div>
+                      )}
+                    </div>
+                    <EmailFrame html={previews[tpl.id]?.html} subject={previews[tpl.id]?.subject} />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="sent">
           <Card>
@@ -320,92 +485,6 @@ const MessagesCenter = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="templates">
-          {templatesLoading ? (
-            <div className="flex justify-center py-10"><Loader2 className="animate-spin text-[#C9972A]" /></div>
-          ) : (
-            <div className="grid gap-4">
-              <p className="text-xs text-muted-foreground">
-                Placeholders: {'{first_name}'}, {'{full_name}'}, {'{date}'}, {'{short_date}'}, {'{title}'}, {'{body}'}. Work lists in the morning digest stay automatic.
-              </p>
-              {templates.map((tpl) => (
-                <Card key={tpl.id}>
-                  <CardHeader className="flex flex-row items-start justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-lg">{tpl.name}</CardTitle>
-                      <p className="text-xs text-muted-foreground mt-1">{tpl.key.replace('_', ' ')}</p>
-                    </div>
-                    {editing === tpl.id ? (
-                      <Button
-                        className="bg-[#C9972A] hover:bg-[#7A5500] text-white"
-                        disabled={saveTemplate.isPending}
-                        onClick={() => saveTemplate.mutate({ id: tpl.id, payload: draft })}
-                      >
-                        {saveTemplate.isPending ? <Loader2 className="animate-spin mr-2" size={14} /> : <Save size={14} className="mr-2" />}
-                        Save
-                      </Button>
-                    ) : (
-                      <Button variant="outline" onClick={() => startEdit(tpl)}>Edit</Button>
-                    )}
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    {editing === tpl.id ? (
-                      <>
-                        <div className="grid md:grid-cols-2 gap-3">
-                          <div>
-                            <Label>Subject</Label>
-                            <Input value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} />
-                          </div>
-                          {tpl.key === 'daily_digest' && (
-                            <div className="flex gap-3">
-                              <div className="flex-1">
-                                <Label>Send hour (IST)</Label>
-                                <Input type="number" min={0} max={23} value={draft.send_hour} onChange={(e) => setDraft({ ...draft, send_hour: Number(e.target.value) })} />
-                              </div>
-                              <div className="flex-1">
-                                <Label>Minute</Label>
-                                <Input type="number" min={0} max={59} value={draft.send_minute} onChange={(e) => setDraft({ ...draft, send_minute: Number(e.target.value) })} />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                        <div>
-                          <Label>Greeting</Label>
-                          <Textarea rows={3} value={draft.greeting} onChange={(e) => setDraft({ ...draft, greeting: e.target.value })} />
-                        </div>
-                        <div>
-                          <Label>Extra message</Label>
-                          <Textarea rows={3} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} />
-                        </div>
-                        {tpl.key === 'daily_digest' && (
-                          <div>
-                            <Label>Birthday note</Label>
-                            <Textarea rows={2} value={draft.birthday_note} onChange={(e) => setDraft({ ...draft, birthday_note: e.target.value })} />
-                          </div>
-                        )}
-                        <div>
-                          <Label>Footer / sign-off</Label>
-                          <Textarea rows={3} value={draft.footer} onChange={(e) => setDraft({ ...draft, footer: e.target.value })} />
-                        </div>
-                        <label className="flex items-center gap-2 text-sm">
-                          <input type="checkbox" checked={!!draft.is_active} onChange={(e) => setDraft({ ...draft, is_active: e.target.checked })} />
-                          Active
-                        </label>
-                      </>
-                    ) : (
-                      <div className="text-sm space-y-1">
-                        <p><span className="text-muted-foreground">Subject:</span> {tpl.subject || '—'}</p>
-                        <p className="whitespace-pre-wrap"><span className="text-muted-foreground">Greeting:</span> {tpl.greeting || '—'}</p>
-                        {tpl.body ? <p className="whitespace-pre-wrap">{tpl.body}</p> : null}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
         <TabsContent value="schedule">
           <div className="grid lg:grid-cols-2 gap-4">
             <Card>
@@ -460,72 +539,78 @@ const MessagesCenter = () => {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader><CardTitle>Upcoming</CardTitle></CardHeader>
-              <CardContent className="space-y-3">
-                {noticesLoading ? (
-                  <Loader2 className="animate-spin text-[#C9972A]" />
-                ) : notices.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No scheduled notices yet.</p>
-                ) : notices.map((n) => (
-                  <div key={n.id} className="rounded-lg border border-border p-3 space-y-2">
-                    <div className="flex justify-between gap-2">
-                      <p className="font-medium text-sm">{n.title}</p>
-                      <span className={`text-xs ${n.is_active ? 'text-emerald-700' : 'text-muted-foreground'}`}>
-                        {n.is_active ? 'Active' : 'Paused'}
-                      </span>
+            <div className="space-y-4">
+              <EmailFrame html={noticePreview?.html} subject={noticePreview?.subject} />
+              <Card>
+                <CardHeader><CardTitle>Upcoming</CardTitle></CardHeader>
+                <CardContent className="space-y-3">
+                  {noticesLoading ? (
+                    <Loader2 className="animate-spin text-[#C9972A]" />
+                  ) : notices.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No scheduled notices yet.</p>
+                  ) : notices.map((n) => (
+                    <div key={n.id} className="rounded-lg border border-border p-3 space-y-2">
+                      <div className="flex justify-between gap-2">
+                        <p className="font-medium text-sm">{n.title}</p>
+                        <span className={`text-xs ${n.is_active ? 'text-emerald-700' : 'text-muted-foreground'}`}>
+                          {n.is_active ? 'Active' : 'Paused'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-3">{n.body}</p>
+                      <p className="text-xs">
+                        {n.scheduled_at ? format(new Date(n.scheduled_at), 'dd MMM yyyy, hh:mm a') : '—'} · {n.repeat}
+                        {n.last_sent_at ? ` · last sent ${format(new Date(n.last_sent_at), 'dd MMM, hh:mm a')}` : ''}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => sendScheduledNow.mutate(n.id)}>Send now</Button>
+                        <Button size="sm" variant="ghost" onClick={() => pauseNotice.mutate({ id: n.id, is_active: !n.is_active })}>
+                          {n.is_active ? 'Pause' : 'Resume'}
+                        </Button>
+                      </div>
                     </div>
-                    <p className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-3">{n.body}</p>
-                    <p className="text-xs">
-                      {n.scheduled_at ? format(new Date(n.scheduled_at), 'dd MMM yyyy, hh:mm a') : '—'} · {n.repeat}
-                      {n.last_sent_at ? ` · last sent ${format(new Date(n.last_sent_at), 'dd MMM, hh:mm a')}` : ''}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline" onClick={() => sendScheduledNow.mutate(n.id)}>Send now</Button>
-                      <Button size="sm" variant="ghost" onClick={() => pauseNotice.mutate({ id: n.id, is_active: !n.is_active })}>
-                        {n.is_active ? 'Pause' : 'Resume'}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </TabsContent>
 
         <TabsContent value="send">
-          <Card className="max-w-2xl">
-            <CardHeader>
-              <CardTitle>Send a custom message now</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div>
-                <Label>Title</Label>
-                <Input value={sendForm.title} onChange={(e) => setSendForm({ ...sendForm, title: e.target.value })} />
-              </div>
-              <div>
-                <Label>Message</Label>
-                <Textarea rows={6} value={sendForm.body} onChange={(e) => setSendForm({ ...sendForm, body: e.target.value })} />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={sendForm.send_in_app} onChange={(e) => setSendForm({ ...sendForm, send_in_app: e.target.checked })} />
-                In-app notification
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={sendForm.send_email} onChange={(e) => setSendForm({ ...sendForm, send_email: e.target.checked })} />
-                Email (SMTP)
-              </label>
-              <UserPicker form={sendForm} setForm={setSendForm} />
-              <Button
-                className="bg-[#C9972A] hover:bg-[#7A5500] text-white w-full"
-                disabled={sendNow.isPending || !sendForm.title || !sendForm.body}
-                onClick={() => sendNow.mutate(sendForm)}
-              >
-                {sendNow.isPending ? <Loader2 className="animate-spin mr-2" size={14} /> : <Send size={14} className="mr-2" />}
-                Send to staff
-              </Button>
-            </CardContent>
-          </Card>
+          <div className="grid lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Send a custom message now</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div>
+                  <Label>Title</Label>
+                  <Input value={sendForm.title} onChange={(e) => setSendForm({ ...sendForm, title: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Message</Label>
+                  <Textarea rows={6} value={sendForm.body} onChange={(e) => setSendForm({ ...sendForm, body: e.target.value })} />
+                </div>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={sendForm.send_in_app} onChange={(e) => setSendForm({ ...sendForm, send_in_app: e.target.checked })} />
+                  In-app notification
+                </label>
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={sendForm.send_email} onChange={(e) => setSendForm({ ...sendForm, send_email: e.target.checked })} />
+                  Email (SMTP)
+                </label>
+                <UserPicker form={sendForm} setForm={setSendForm} />
+                <Button
+                  className="bg-[#C9972A] hover:bg-[#7A5500] text-white w-full"
+                  disabled={sendNow.isPending || !sendForm.title || !sendForm.body}
+                  onClick={() => sendNow.mutate(sendForm)}
+                >
+                  {sendNow.isPending ? <Loader2 className="animate-spin mr-2" size={14} /> : <Send size={14} className="mr-2" />}
+                  Send to staff
+                </Button>
+              </CardContent>
+            </Card>
+            <EmailFrame html={sendPreview?.html} subject={sendPreview?.subject} />
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -536,11 +621,7 @@ const MessagesCenter = () => {
           </DialogHeader>
           <p className="text-xs text-muted-foreground">{previewLog?.to_name} · {previewLog?.to_email}</p>
           {previewLog?.error ? <p className="text-sm text-red-600">{previewLog.error}</p> : null}
-          <iframe
-            title="Email preview"
-            className="w-full min-h-[420px] rounded-md border border-border bg-white"
-            srcDoc={previewLog?.body_preview || '<p>No preview</p>'}
-          />
+          <EmailFrame html={previewLog?.body_preview} subject={previewLog?.subject} />
         </DialogContent>
       </Dialog>
     </div>
