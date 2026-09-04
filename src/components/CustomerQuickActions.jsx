@@ -5,6 +5,7 @@ import {
   Phone, MessageCircle, Bell, StickyNote, Send, X, Check, ChevronDown, Flame, MapPin, Navigation
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import useAuth from '../hooks/useAuth';
 
 const WHATSAPP_TEMPLATES = [
   { label: 'Follow-up', text: (name) => `Hi ${name}! 😊 Following up on your visit to Bindu Jewellery. Would you like to come in and take a look at our latest collection?` },
@@ -14,6 +15,7 @@ const WHATSAPP_TEMPLATES = [
 ];
 
 export default function CustomerQuickActions({ customer }) {
+  const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const phone = customer?.phone?.replace(/[^0-9]/g, '') || '';
   const leadId = customer?.leads?.[0]?.id;
@@ -26,9 +28,7 @@ export default function CustomerQuickActions({ customer }) {
   const [success, setSuccess] = useState('');
   const [visitForm, setVisitForm] = useState({ staff: '', scheduled_date: '', notes: '' });
 
-  const userStr = localStorage.getItem('user');
-  const currentUser = userStr ? JSON.parse(userStr) : null;
-  const canManage = currentUser?.role === 'owner' || currentUser?.role === 'manager' || currentUser?.role === 'admin' || currentUser?.role === 'sub_manager';
+  const canManage = hasPermission('field_visits:manage') || hasPermission('leads:assign') || hasPermission('followups:view');
 
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 2500); };
 

@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 import toast from 'react-hot-toast';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import useAuth from '@/hooks/useAuth';
+import useAuthStore from '@/store/authStore';
+import { FLAG_LABELS, PERMISSION_GROUPS } from '@/lib/permissions';
 
 import {
   Table,
@@ -67,18 +69,10 @@ const taskCreateSchema = z.object({
   due_date: z.string().optional().nullable(),
 });
 
-const PERMISSION_GROUPS = [
-  { group: 'Leads', fields: ['can_view_leads', 'can_add_leads', 'can_edit_leads', 'can_assign_leads', 'can_delete_leads'] },
-  { group: 'Follow-ups & Calls', fields: ['can_view_followups', 'can_view_calls', 'can_add_calls'] },
-  { group: 'Staff', fields: ['can_view_staff', 'can_add_staff', 'can_edit_staff', 'can_delete_staff'] },
-  { group: 'Attendance', fields: ['can_view_attendance', 'can_approve_attendance'] },
-  { group: 'Sales', fields: ['can_view_sales', 'can_add_sales'] },
-  { group: 'Reports & Campaigns', fields: ['can_view_reports', 'can_export_reports', 'can_view_campaigns', 'can_create_campaigns', 'can_view_field_visits'] }
-];
-
 const TeamPage = () => {
   const queryClient = useQueryClient();
   const { user, isOwner, isManager } = useAuth();
+  const setUser = useAuthStore((s) => s.setUser);
   const [selectedBranch, setSelectedBranch] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -426,7 +420,12 @@ const TeamPage = () => {
     mutationFn: ({ id, formData }) => api.patch(`/accounts/staff-permissions/${id}/`, formData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['permissions', selectedUser?.id] });
-      toast.success('Permissions updated successfully');
+      toast.success(
+        `Security updated for ${selectedUser?.full_name || 'this person'}. Web and mobile menus refresh within a few seconds.`
+      );
+      if (selectedUser?.id && user?.id && String(selectedUser.id) === String(user.id)) {
+        api.get('/accounts/me/').then((res) => setUser(res.data)).catch(() => {});
+      }
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to update permissions');
@@ -1129,11 +1128,19 @@ const TeamPage = () => {
                     <div className="text-center py-8 text-muted-foreground">No permissions record found.</div>
                   ) : (
                     <form onSubmit={permissionsForm.handleSubmit(onPermissionsSubmit)} className="space-y-6">
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                        These checkboxes control menus and actions on <strong>web and the mobile app</strong>.
+                        Unchecked items are hidden for this person and they will see a clear message if they try to open them.
+                        Changes apply within a few seconds — no re-login needed.
+                      </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {PERMISSION_GROUPS.map((group) => (
                           <Card key={group.group} className="shadow-none border-border">
                             <CardHeader className="py-3 px-4 bg-muted/30 border-b border-border">
                               <CardTitle className="text-base font-semibold">{group.group}</CardTitle>
+                              {group.hint ? (
+                                <p className="text-xs text-muted-foreground font-normal mt-1">{group.hint}</p>
+                              ) : null}
                             </CardHeader>
                             <CardContent className="p-4 space-y-3">
                               {group.fields.map(field => (
@@ -1146,7 +1153,7 @@ const TeamPage = () => {
                                       className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                     />
                                     <Label htmlFor={field} className="text-sm font-medium cursor-pointer">
-                                      {field.replace(/can_/g, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                                      {FLAG_LABELS[field] || field.replace(/can_/g, '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                                     </Label>
                                   </div>
                                 ))}

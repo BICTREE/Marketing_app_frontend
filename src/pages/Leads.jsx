@@ -12,6 +12,8 @@ import {
   ArrowUpRight, CheckCircle2, Users, Activity, Info, Tag, MessageSquare
 } from 'lucide-react';
 import { format } from 'date-fns';
+import useAuth from '../hooks/useAuth';
+import { permissionDeniedMessage } from '../lib/permissions';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend
@@ -128,6 +130,7 @@ const safeFormat = (dateStr, formatStr, fallback = '—') => {
 
 const Leads = () => {
   const navigate = useNavigate();
+  const { user: authUser, hasPermission } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState('all');
   const [selectedBranch, setSelectedBranch] = useState('all');
@@ -213,19 +216,21 @@ const Leads = () => {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     if (searchParams.get('add') === 'true') {
-      setIsAddModalOpen(true);
-      // Clean up the URL without reloading the page
+      if (canAddLead) setIsAddModalOpen(true);
+      else toast.error(permissionDeniedMessage('leads:create'));
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, []);
+  }, [canAddLead]);
 
   const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
+  const user = authUser || (userStr ? JSON.parse(userStr) : null);
   const isAdmin = user?.role === 'owner' || user?.role === 'admin';
   const isManager = user?.role === 'manager' || user?.role === 'sub_manager';
   const isStaff = !isAdmin && !isManager;
   const isStaffView = window.location.pathname.startsWith('/staff');
   const pathPrefix = isStaffView ? '/staff/leads' : '/leads';
+  const canAddLead = hasPermission('leads:create');
+  const canScheduleFollowup = hasPermission('followups:view') || hasPermission('leads:edit') || hasPermission('leads:create');
 
   // Fetch segments for filtering
   const { data: segmentsData } = useQuery({
@@ -482,6 +487,7 @@ const Leads = () => {
             {showFilters ? 'Hide Filters' : 'Filters'}
           </button>
 
+          {canScheduleFollowup && (
           <Button
             variant="outline"
             className="gap-2 h-10 px-4 rounded-xl border-[#C9972A]/60 text-[#C9972A] hover:bg-amber-50 font-bold text-xs shadow-xs"
@@ -500,13 +506,22 @@ const Leads = () => {
           >
             <Clock size={16} /> Schedule Follow-up
           </Button>
+          )}
 
-          <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
+          <Dialog open={isAddModalOpen} onOpenChange={(open) => {
+            if (open && !canAddLead) {
+              toast.error(permissionDeniedMessage('leads:create'));
+              return;
+            }
+            setIsAddModalOpen(open);
+          }}>
+            {canAddLead && (
             <DialogTrigger asChild>
               <Button className="gap-2 h-10 px-6 rounded-xl bg-gray-900 hover:bg-black text-white border-0">
                 <Plus size={16} /> Add Lead
               </Button>
             </DialogTrigger>
+            )}
           <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{phoneLookup ? 'Add Lead to Existing Customer' : 'Add New Lead'}</DialogTitle>

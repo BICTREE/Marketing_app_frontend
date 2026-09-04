@@ -144,9 +144,9 @@ const StaffDashboard = () => {
               <Link to="/staff/leads?add=true"><Plus size={16} className="mr-2" /> Add Lead</Link>
             </Button>
           )}
-          {hasPermission('sales:create') && (
+          {hasPermission('sales:view') && hasPermission('sales:create') && (
             <Button asChild variant="outline" className="border-[#0F6E56] text-[#0F6E56] hover:bg-[#0F6E56]/10 shadow-sm whitespace-nowrap">
-              <Link to="/sales?add=true"><Plus size={16} className="mr-2" /> Record Sale</Link>
+              <Link to="/staff/sales?add=true"><Plus size={16} className="mr-2" /> Record Sale</Link>
             </Button>
           )}
         </div>

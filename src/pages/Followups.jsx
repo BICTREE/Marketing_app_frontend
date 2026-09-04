@@ -44,8 +44,8 @@ const STATUS_META = {
 };
 
 const Followups = () => {
-  const { isOwner, isManager, user } = useAuth();
-  const isAdmin = isOwner || isManager;
+  const { isOwner, isManager, user, hasPermission } = useAuth();
+  const isAdmin = isOwner || isManager || hasPermission('leads:assign');
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const isStaffView = window.location.pathname.startsWith('/staff');

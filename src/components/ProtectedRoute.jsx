@@ -1,6 +1,7 @@
 import React from 'react';
-import { Navigate, useLocation, Link, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation, Link } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
+import { permissionDeniedMessage } from '../lib/permissions';
 
 /**
  * ProtectedRoute — ensures user is authenticated before rendering children.
@@ -44,51 +45,41 @@ const ProtectedRoute = ({ children, permission, requireAll, requireAny, allowedR
   // Permission check (if specified)
   if (!isOwner) {
     if (permission && !hasPermission(permission)) {
-      return <AccessDenied />;
+      return <AccessDenied permission={permission} />;
     }
 
     if (requireAll && requireAll.length > 0) {
       const hasAll = requireAll.every(p => hasPermission(p));
-      if (!hasAll) return <AccessDenied />;
+      if (!hasAll) return <AccessDenied permission={requireAll[0]} />;
     }
 
     if (requireAny && requireAny.length > 0) {
       const hasAny = requireAny.some(p => hasPermission(p));
-      if (!hasAny) return <AccessDenied />;
+      if (!hasAny) return <AccessDenied permission={requireAny[0]} />;
     }
   }
 
   return children;
 };
 
-const AccessDenied = () => {
-  const { logout } = useAuth();
-  const navigate = useNavigate();
-
-  const handleLoginRedirect = () => {
-    logout();
-    navigate('/login', { replace: true });
-  };
+const AccessDenied = ({ permission }) => {
+  const { dashboardPath } = useAuth();
 
   return (
     <div className="flex flex-col items-center justify-center h-full min-h-[60vh] gap-4 p-6 text-center">
       <div className="text-6xl">🔒</div>
-      <h2 className="text-2xl font-bold text-foreground">Access Denied</h2>
-      <p className="text-muted-foreground text-center max-w-sm">
-        You don't have permission to view this page. Contact your administrator.
+      <h2 className="text-2xl font-bold text-foreground">This section is not enabled for you</h2>
+      <p className="text-muted-foreground text-center max-w-md">
+        {permission
+          ? permissionDeniedMessage(permission)
+          : "You don't have permission to view this page. Ask your owner to enable it in Team → Security."}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-        <button
-          onClick={handleLoginRedirect}
-          className="bg-[#C9972A] hover:bg-[#7A5500] text-white font-semibold px-6 py-2.5 rounded-lg shadow transition-colors cursor-pointer"
-        >
-          Go to Login Page
-        </button>
         <Link
-          to="/"
-          className="px-5 py-2.5 text-sm font-medium text-foreground hover:text-primary border border-border rounded-lg hover:bg-accent transition-colors"
+          to={dashboardPath || '/'}
+          className="bg-[#C9972A] hover:bg-[#7A5500] text-white font-semibold px-6 py-2.5 rounded-lg shadow transition-colors"
         >
-          Go Home
+          Go to Home
         </Link>
       </div>
     </div>

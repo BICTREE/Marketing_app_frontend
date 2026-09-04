@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+import { getApiErrorMessage } from '../lib/permissions';
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
 
@@ -33,7 +34,9 @@ api.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const detail = error.response?.data?.detail || '';
+    const detailRaw = error.response?.data?.detail;
+    const nestedRaw = error.response?.data?.error?.detail;
+    const detail = typeof detailRaw === 'string' ? detailRaw : (typeof nestedRaw === 'string' ? nestedRaw : '');
     const code = error.response?.data?.code || '';
 
     // 401 → check single device session logout first
@@ -71,6 +74,12 @@ api.interceptors.response.use(
           return Promise.reject(error);
         }
       }
+    }
+
+    if (error.response?.status === 403) {
+      toast.error(getApiErrorMessage(error, "You don't have permission for this action."), {
+        id: 'perm-denied',
+      });
     }
 
     return Promise.reject(error);

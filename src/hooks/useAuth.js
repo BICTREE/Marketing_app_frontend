@@ -1,5 +1,6 @@
 import useAuthStore from '../store/authStore';
 import authService from '../services/authService';
+import { FLAG_FOR_CODE } from '../lib/permissions';
 
 /**
  * useAuth — convenience hook exposing auth state + role helpers
@@ -44,7 +45,10 @@ const useAuth = () => {
     hasPermission: (permName) => {
       if (isOwner) return true;
       const allPerms = user?.all_permissions || [];
-      return allPerms.includes(permName);
+      if (allPerms.includes(permName)) return true;
+      const flag = FLAG_FOR_CODE[permName];
+      if (flag && user?.permissions?.[flag]) return true;
+      return false;
     },
 
     /**

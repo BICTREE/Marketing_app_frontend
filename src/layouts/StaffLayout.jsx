@@ -9,9 +9,10 @@ import { cn } from '@/lib/utils';
 import NotificationBell from '../components/NotificationBell';
 
 const StaffLayout = () => {
-  const { logout, hasPermission } = useAuth();
+  const { logout, hasPermission, user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const role = (user?.role || '').toLowerCase();
 
   const handleLogout = async () => {
     await logout();
@@ -27,7 +28,12 @@ const StaffLayout = () => {
     { label: 'Visits', icon: MapPin, path: '/staff/field-visits', permission: 'field_visits:view' },
     { label: 'Attendance', icon: CalendarCheck, path: '/staff/attendance', permission: 'attendance:view' },
     { label: 'Profile', icon: User, path: '/staff/profile', permission: 'profile:view' },
-  ].filter(item => hasPermission(item.permission));
+  ].filter(item => {
+    if (item.path === '/staff/attendance') {
+      return hasPermission(item.permission) || ['staff', 'telecaller', 'field_staff', 'custom'].includes(role);
+    }
+    return hasPermission(item.permission);
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
@@ -47,7 +53,7 @@ const StaffLayout = () => {
         </div>
         
         {/* Desktop Navigation */}
-        <nav className="hidden md:flex items-center gap-1 mx-4">
+        <nav className="hidden md:flex items-center gap-1 mx-4 overflow-x-auto max-w-[60vw]">
           {navItems.map((item) => {
             const isActive = location.pathname.startsWith(item.path);
             return (
@@ -84,7 +90,8 @@ const StaffLayout = () => {
       </main>
 
       {/* Bottom Navigation for Mobile Workflow */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-2 py-2 flex justify-around items-center pb-safe z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 pb-safe z-30 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] overflow-x-auto">
+        <div className="flex items-center justify-around min-w-full w-max px-2 py-2">
         {navItems.map((item) => {
           const isActive = location.pathname.startsWith(item.path);
             
@@ -104,6 +111,7 @@ const StaffLayout = () => {
             </NavLink>
           );
         })}
+        </div>
       </nav>
     </div>
   );

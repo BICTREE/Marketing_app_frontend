@@ -58,16 +58,25 @@ const AppRoutes = () => {
     initializeAuth();
   }, [initializeAuth]);
 
-  // Re-fetch profile to get latest permissions/data from backend
+  // Keep menus in sync when Team Security changes (no re-login).
   useEffect(() => {
-    if (isAuthenticated && user?.id) {
+    if (!isAuthenticated || !user?.id) return;
+
+    const refresh = () => {
       api.get('/accounts/me/')
-        .then(res => {
-          setUser(res.data);
-        })
+        .then(res => setUser(res.data))
         .catch(err => console.warn('Profile refresh skipped:', err?.response?.status));
-    }
-  }, [isAuthenticated, user?.id]);
+    };
+
+    refresh();
+    const interval = setInterval(refresh, 30_000);
+    const onFocus = () => refresh();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [isAuthenticated, user?.id, setUser]);
 
   return (
     <Suspense fallback={<div className="flex h-screen items-center justify-center text-muted-foreground">Loading application...</div>}>
@@ -113,7 +122,7 @@ const AppRoutes = () => {
           <Route path="/staff/leads/:id" element={<ProtectedRoute permission="leads:view"><CustomerProfile /></ProtectedRoute>} />
           <Route path="/staff/calls" element={<ProtectedRoute permission="calls:view"><StaffCalls /></ProtectedRoute>} />
           <Route path="/staff/sales" element={<ProtectedRoute permission="sales:view"><Sales /></ProtectedRoute>} />
-          <Route path="/staff/attendance" element={<ProtectedRoute permission="attendance:view"><StaffAttendance /></ProtectedRoute>} />
+          <Route path="/staff/attendance" element={<StaffAttendance />} />
           <Route path="/staff/field-visits" element={<ProtectedRoute permission="field_visits:view"><StaffFieldVisits /></ProtectedRoute>} />
           <Route path="/staff/customers" element={<ProtectedRoute permission="leads:view"><Customers /></ProtectedRoute>} />
           <Route path="/staff/profile" element={<ProfilePage />} />
