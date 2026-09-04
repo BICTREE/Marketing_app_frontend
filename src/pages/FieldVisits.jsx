@@ -52,8 +52,8 @@ const localYmd = (value) => {
 
 // Mirrors field_visits/liveness.py so the map and the API never disagree about
 // who is online. A marker is only green when a fix actually arrived recently.
-const LIVE_MAX_AGE_SECONDS = 90;
-const DELAYED_MAX_AGE_SECONDS = 300;
+const LIVE_MAX_AGE_SECONDS = 45;
+const DELAYED_MAX_AGE_SECONDS = 180;
 
 const GPS_STATUS_STYLES = {
   live:    { color: '#10B981', label: '🟢 Live',    ring: 'rgba(16,185,129,0.35)' },
@@ -410,7 +410,7 @@ const FieldVisitsPage = () => {
   const { data: liveTrackingData } = useQuery({
     queryKey: ['live-tracking'],
     queryFn: () => api.get('/field-visits/live-tracking/').then(res => res.data.locations || []),
-    refetchInterval: 5000,
+    refetchInterval: 2500,
     enabled: !!canViewLiveTracking
   });
 
@@ -453,7 +453,7 @@ const FieldVisitsPage = () => {
 
         ws.onclose = () => {
           setWsStatus('disconnected');
-          reconnectTimer = setTimeout(connectWs, 5000);
+          reconnectTimer = setTimeout(connectWs, 2500);
         };
 
         ws.onerror = () => {
@@ -478,7 +478,7 @@ const FieldVisitsPage = () => {
   const [statusNow, setStatusNow] = useState(() => Date.now());
   useEffect(() => {
     if (!canViewLiveTracking) return;
-    const t = setInterval(() => setStatusNow(Date.now()), 5000);
+    const t = setInterval(() => setStatusNow(Date.now()), 2000);
     return () => clearInterval(t);
   }, [canViewLiveTracking]);
 
@@ -546,7 +546,8 @@ const FieldVisitsPage = () => {
         return Array.isArray(list) ? list.filter(p => p.latitude && p.longitude) : [];
       });
     },
-    enabled: selectedTrackedStaff !== 'all'
+    enabled: selectedTrackedStaff !== 'all',
+    refetchInterval: 4000,
   });
 
   const rawStaffTrailPoints = React.useMemo(() => {
@@ -1146,8 +1147,13 @@ const FieldVisitsPage = () => {
                       : 'bg-background text-muted-foreground border-border opacity-60'
                   }`}
                 >
-                  🟢 Live Staff ({trackingCounts.live}/{activeLiveTracking.length}) {showStaffPins ? '✓' : 'OFF'}
+                  🟢 Live Staff ({trackingCounts.live} live · {trackingCounts.gps_off} GPS off / {activeLiveTracking.length}) {showStaffPins ? '✓' : 'OFF'}
                 </button>
+                {trackingCounts.gps_off > 0 && (
+                  <span className="px-2.5 py-1 rounded-md text-xs font-bold bg-red-100 border border-red-300 text-red-800">
+                    ⚠️ GPS Off ({trackingCounts.gps_off}) — ask staff to tap TURN ON GPS
+                  </span>
+                )}
 
                 <button
                   type="button"
@@ -1647,7 +1653,7 @@ const FieldVisitsPage = () => {
 
                 {/* ── 2. LIVE FIELD STAFF MAP PINS (Controlled by Toggle, Live-Only Filter & Staff Selector) ── */}
                 {showStaffPins && (selectedTrackedStaff === 'all' ? activeLiveTracking : activeLiveTracking?.filter(loc => String(loc.staff_id) === String(selectedTrackedStaff)))
-                  ?.filter(loc => !showOnlyLiveStaff || loc.gps_status === 'live' || loc.gps_status === 'delayed')
+                  ?.filter(loc => !showOnlyLiveStaff || loc.gps_status === 'live' || loc.gps_status === 'delayed' || loc.gps_status === 'gps_off')
                   ?.map((loc, i) => {
                   // Colour encodes presence, not identity. A grey or red pin means
                   // the position is last-known, not where the person is now.
@@ -1708,7 +1714,7 @@ const FieldVisitsPage = () => {
                           {!isLive && (
                             <p style={{ fontSize: 11, margin: '4px 0', padding: '5px 7px', borderRadius: 5, background: '#FEF3C7', color: '#92400E', fontWeight: 600 }}>
                               {loc.gps_status === 'gps_off'
-                                ? 'GPS is switched off on this device. This is their last known position.'
+                                ? 'GPS is switched off on this phone. Ask them to tap TURN ON GPS in the Bindu app.'
                                 : `No update for ${formatAgo(loc.seconds_ago)}. This is their last known position.`}
                             </p>
                           )}

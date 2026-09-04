@@ -269,7 +269,7 @@ const AdminDashboard = () => {
   const { data: liveTracking, refetch: refetchLive } = useQuery({
     queryKey: ['admin-live-tracking'],
     queryFn: () => api.get('/field-visits/live-tracking/').then(r => r.data.locations || []).catch(() => []),
-    refetchInterval: 10000,
+    refetchInterval: 4000,
   });
 
   const leadsData = leadsResponse?.results || [];
