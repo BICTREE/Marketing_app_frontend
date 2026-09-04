@@ -264,7 +264,7 @@ const MessagesCenter = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <BinduMark size={48} />
+        <BinduMark size={44} />
         <div>
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
             Mail & Alerts

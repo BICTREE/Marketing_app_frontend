@@ -19,7 +19,6 @@ import {
 import toast from 'react-hot-toast';
 import { normalizeGrams } from '@/lib/utils';
 import { KPICard } from '@/components/dashboard/KPICard';
-import { BinduMark } from '@/components/BinduLogo';
 import { ChartCard, ChartTooltip, EmptyChart } from '@/components/dashboard/ChartWidget';
 import { StageBadge } from '@/components/dashboard/StageBadge';
 import { RevenueTrendWidget } from '@/components/dashboard/RevenueTrendWidget';
@@ -428,15 +427,12 @@ const AdminDashboard = () => {
 
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="dash-header">
-        <div className="flex items-center gap-3">
-          <BinduMark size={42} />
-          <div>
-            <h1 className="dash-title">Admin Dashboard</h1>
-            <p className="dash-subtitle">
-              <Clock size={13} className="inline mr-1" />
-              Last updated {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-            </p>
-          </div>
+        <div>
+          <h1 className="dash-title">Admin Dashboard</h1>
+          <p className="dash-subtitle">
+            <Clock size={13} className="inline mr-1" />
+            Last updated {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+          </p>
         </div>
         <div className="dash-header-actions">
           <div className="flex items-center gap-2">

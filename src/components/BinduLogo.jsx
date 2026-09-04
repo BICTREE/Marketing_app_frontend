@@ -3,41 +3,32 @@ import { cn } from '@/lib/utils';
 
 export const BINDU_LOGO = '/logo-gold.png';
 
-/** Gold BJ monogram on navy — same mark used in staff emails. */
+/** Gold BJ monogram, no box — it is already a finished mark. */
 export function BinduMark({ size = 40, className = '' }) {
   const box = typeof size === 'number' ? `${size}px` : size;
   return (
-    <span
-      className={cn(
-        'inline-flex items-center justify-center rounded-xl bg-[#0F172A] border border-[#C9972A]/45 shadow-sm shrink-0 overflow-hidden',
-        className,
-      )}
+    <img
+      src={BINDU_LOGO}
+      alt="Bindu Jewellery"
+      className={cn('object-contain shrink-0', className)}
       style={{ width: box, height: box }}
-      aria-hidden="true"
-    >
-      <img
-        src={BINDU_LOGO}
-        alt=""
-        className="object-contain"
-        style={{ width: '78%', height: '78%' }}
-      />
-    </span>
+    />
   );
 }
 
-export function BinduWordmark({ subtitle, className = '', to, markSize = 40 }) {
+export function BinduWordmark({ subtitle, className = '', to, markSize = 44 }) {
   const inner = (
     <>
       <BinduMark size={markSize} />
       <span className="min-w-0">
         <span
-          className="block font-bold text-foreground leading-tight tracking-tight"
+          className="block font-semibold text-foreground leading-tight tracking-tight"
           style={{ fontFamily: "'Playfair Display', serif" }}
         >
           Bindu Jewellery
         </span>
         {subtitle ? (
-          <span className="block text-[10px] uppercase tracking-[0.16em] font-semibold text-[#C9972A] mt-0.5">
+          <span className="block text-[10px] uppercase tracking-[0.14em] font-medium text-muted-foreground mt-0.5">
             {subtitle}
           </span>
         ) : null}

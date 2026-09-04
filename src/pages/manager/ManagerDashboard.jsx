@@ -22,7 +22,6 @@ import { RecentActivityWidget } from '@/components/dashboard/RecentActivityWidge
 import { StaffLeaderboardWidget } from '@/components/dashboard/StaffLeaderboardWidget';
 import { LeadsSourceWidget, SOURCE_META } from '@/components/dashboard/LeadsSourceWidget';
 import useAuth from '@/hooks/useAuth';
-import { BinduMark } from '@/components/BinduLogo';
 const safeFormat = (dateStr, formatStr, fallback = '—') => {
   if (!dateStr) return fallback;
   try {
@@ -254,17 +253,14 @@ const ManagerDashboard = () => {
     <div className="dash-wrap">
       {/* ── Header ─────────────────────────────────────────────────── */}
       <div className="dash-header">
-        <div className="flex items-center gap-3">
-          <BinduMark size={42} />
-          <div>
-            <h1 className="dash-title">
-              Manager Dashboard <span style={{ fontSize: '1rem', fontWeight: 500, color: '#9CA3AF' }}>({user?.branch_name})</span>
-            </h1>
-            <p className="dash-subtitle">
-              <Clock size={13} className="inline mr-1" />
-              Last updated {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-            </p>
-          </div>
+        <div>
+          <h1 className="dash-title">
+            Manager Dashboard <span style={{ fontSize: '1rem', fontWeight: 500, color: '#9CA3AF' }}>({user?.branch_name})</span>
+          </h1>
+          <p className="dash-subtitle">
+            <Clock size={13} className="inline mr-1" />
+            Last updated {lastRefresh.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+          </p>
         </div>
         <div className="dash-header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <Button asChild className="bg-[#0F6E56] hover:bg-[#0A4A3A] text-white shadow-sm h-9" size="sm">

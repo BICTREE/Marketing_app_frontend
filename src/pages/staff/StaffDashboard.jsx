@@ -7,7 +7,6 @@ import { Users, PhoneCall, CheckCircle, Plus, Activity, MapPin, MessageSquare, C
 import useAuth from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
 import { KPICard } from '@/components/dashboard/KPICard';
-import { BinduMark } from '@/components/BinduLogo';
 import { ChartCard, EmptyChart } from '@/components/dashboard/ChartWidget';
 import { RecentActivityWidget } from '@/components/dashboard/RecentActivityWidget';
 
@@ -123,14 +122,11 @@ const StaffDashboard = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-3">
-          <BinduMark size={40} />
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-              Welcome back, {user?.full_name?.split(' ')[0] || 'Staff'}!
-            </h1>
-            <p className="text-muted-foreground text-sm mt-1">Here is what's happening with your schedule today.</p>
-          </div>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Welcome back, {user?.full_name?.split(' ')[0] || 'Staff'}!
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">Here is what's happening with your schedule today.</p>
         </div>
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <select 

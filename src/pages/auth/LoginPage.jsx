@@ -103,7 +103,7 @@ const LoginPage = () => {
     <div className="w-full space-y-6">
       <div className="text-center space-y-4">
         <div className="flex justify-center">
-          <BinduMark size={88} className="rounded-2xl shadow-md" />
+          <BinduMark size={96} />
         </div>
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>

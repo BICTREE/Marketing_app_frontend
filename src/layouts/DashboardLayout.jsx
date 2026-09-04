@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import AdminAIAssistant from '../components/AdminAIAssistant';
 import NotificationBell from '../components/NotificationBell';
-import { BinduWordmark, BinduMark } from '@/components/BinduLogo';
+import { BinduWordmark } from '@/components/BinduLogo';
 
 const DashboardLayout = () => {
   const { user, logout, isOwner, isManager, isStaff, dashboardPath, hasPermission } = useAuth();
@@ -69,15 +69,12 @@ const DashboardLayout = () => {
         "fixed md:static inset-y-0 left-0 z-40 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out flex flex-col h-full md:translate-x-0",
         mobileMenuOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="border-b border-[#E8D5A3]">
-          <div className="h-1 bg-gradient-to-r from-[#0F172A] via-[#C9972A] to-[#0F172A]" />
-          <div className="p-5">
-            <BinduWordmark
-              to={dashboardPath}
-              subtitle={user?.role ? `${String(user.role).replaceAll('_', ' ')} portal` : 'Portal'}
-              markSize={44}
-            />
-          </div>
+        <div className="p-5 border-b border-border">
+          <BinduWordmark
+            to={dashboardPath}
+            subtitle={user?.role ? `${String(user.role).replaceAll('_', ' ')} portal` : 'Portal'}
+            markSize={48}
+          />
         </div>
 
         <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
@@ -129,13 +126,7 @@ const DashboardLayout = () => {
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col min-w-0 h-[calc(100vh-65px)] md:h-screen overflow-hidden">
         {/* Top Header */}
-        <header className="hidden md:flex h-16 items-center justify-between px-8 bg-card border-b border-[#E8D5A3]/70 shrink-0">
-          <div className="flex items-center gap-2 text-[#8B6914]">
-            <BinduMark size={22} className="rounded-lg" />
-            <span className="text-xs font-semibold tracking-[0.18em] uppercase hidden lg:inline">
-              Bindu Jewellery
-            </span>
-          </div>
+        <header className="hidden md:flex h-16 items-center justify-end px-8 bg-card border-b border-border/50 shrink-0">
           <div className="flex items-center gap-4">
             <NotificationBell />
             <Link to="/profile" className="p-2 text-muted-foreground hover:text-foreground transition-colors rounded-full hover:bg-muted">

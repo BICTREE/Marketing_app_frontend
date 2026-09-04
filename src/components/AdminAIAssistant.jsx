@@ -3,12 +3,11 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import api from '@/api/axios';
 import useAuth from '@/hooks/useAuth';
 import { 
-  Send, X, Minimize2, Maximize2, 
-  RotateCcw, Loader2, Bot, User,
+  Send, X, Sparkles, Minimize2, Maximize2, 
+  RotateCcw, Gem, Loader2, Bot, User,
   FileDown, CreditCard
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { BinduMark, BINDU_LOGO } from '@/components/BinduLogo';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import jsPDF from 'jspdf';
@@ -265,7 +264,9 @@ const AdminAIAssistant = () => {
           <div className="bg-white p-5 border-b border-gray-100 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <BinduMark size={48} className="rounded-2xl" />
+                <div className="w-12 h-12 rounded-2xl bg-[#C9972A] flex items-center justify-center shadow-lg shadow-[#C9972A]/20">
+                  <Bot size={24} className="text-white" />
+                </div>
                 <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white shadow-sm shadow-emerald-500/50" />
               </div>
               <div>
@@ -422,11 +423,11 @@ const AdminAIAssistant = () => {
           setIsMinimized(false);
         }}
         className={cn(
-          "w-14 h-14 rounded-full bg-[#0F172A] border-2 border-[#C9972A] shadow-xl shadow-[#C9972A]/25 flex items-center justify-center transition-all duration-300 hover:shadow-2xl hover:shadow-[#C9972A]/40 hover:-translate-y-1 active:scale-95 group pointer-events-auto relative overflow-hidden",
+          "w-14 h-14 rounded-full bg-gradient-to-tr from-[#C9972A] to-amber-400 text-white shadow-xl shadow-[#C9972A]/30 flex items-center justify-center transition-all duration-300 hover:shadow-2xl hover:shadow-[#C9972A]/50 hover:-translate-y-1 active:scale-95 group pointer-events-auto relative",
           isOpen ? "scale-0 opacity-0 pointer-events-none translate-y-10" : "scale-100 opacity-100 translate-y-0"
         )}
       >
-        <img src={BINDU_LOGO} alt="Bindu Intelligence" className="w-8 h-8 object-contain relative z-10 transition-transform duration-300 group-hover:scale-110" />
+        <Sparkles size={24} className="relative z-10 transition-transform duration-300 group-hover:scale-110" />
       </button>
     </div>
   );
