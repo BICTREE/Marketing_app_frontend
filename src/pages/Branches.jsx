@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import api from '@/api/axios';
 import { MapPin, Plus, Loader2, TrendingUp, Users, BarChart3, DollarSign, X, Clock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import useAuth from '@/hooks/useAuth';
 
 import {
   Table,
@@ -43,6 +44,7 @@ const segmentSchema = z.object({
 
 const BranchesPage = () => {
   const queryClient = useQueryClient();
+  const { isOwner } = useAuth();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedBranchForSegment, setSelectedBranchForSegment] = useState(null);
   const [isSegmentDialogOpen, setIsSegmentDialogOpen] = useState(false);
@@ -258,6 +260,7 @@ const BranchesPage = () => {
             </button>
           </div>
 
+          {isOwner && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="gap-2 font-bold shadow-md bg-primary hover:bg-primary/90 text-primary-foreground">
@@ -301,6 +304,7 @@ const BranchesPage = () => {
               </form>
             </DialogContent>
           </Dialog>
+          )}
         </div>
       </div>
 
