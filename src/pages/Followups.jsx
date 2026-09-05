@@ -630,6 +630,11 @@ const Followups = () => {
               <textarea 
                 className="w-full p-3 rounded-lg border border-border bg-background text-sm min-h-[80px]"
                 placeholder="What happened during this call/visit?"
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                inputMode="text"
                 value={completionData.outcome}
                 onChange={(e) => setCompletionData({...completionData, outcome: e.target.value})}
               />
@@ -688,6 +693,10 @@ const Followups = () => {
                     type="text" 
                     placeholder="e.g. Call to finalize order"
                     className="w-full p-2 rounded-lg border border-border bg-background text-sm"
+                    spellCheck={false}
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="off"
                     value={completionData.nextNote}
                     onChange={(e) => setCompletionData({...completionData, nextNote: e.target.value})}
                   />
@@ -748,6 +757,10 @@ const Followups = () => {
                 required
                 placeholder="e.g. Customer unavailable, location out of service area, request callback next month..."
                 className="w-full p-3 rounded-xl border border-gray-300 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-red-500/20 focus:border-red-500 text-sm outline-none transition-all"
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
                 value={issueNote}
                 onChange={(e) => setIssueNote(e.target.value)}
               />
