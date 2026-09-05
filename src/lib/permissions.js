@@ -1,5 +1,6 @@
 export const FLAG_LABELS = {
   can_view_leads: 'View leads',
+  can_view_branch_leads: 'See all leads in their branch',
   can_add_leads: 'Add leads',
   can_edit_leads: 'Edit leads',
   can_assign_leads: 'Assign leads',
@@ -23,7 +24,7 @@ export const FLAG_LABELS = {
 };
 
 export const PERMISSION_GROUPS = [
-  { group: 'Leads', hint: 'Who they can see and update in the lead book.', fields: ['can_view_leads', 'can_add_leads', 'can_edit_leads', 'can_assign_leads', 'can_delete_leads'] },
+  { group: 'Leads', hint: 'Who they can see and update in the lead book.', fields: ['can_view_leads', 'can_view_branch_leads', 'can_add_leads', 'can_edit_leads', 'can_assign_leads', 'can_delete_leads'] },
   { group: 'Follow-ups & Calls', hint: 'Call workbench and follow-up queue.', fields: ['can_view_followups', 'can_view_calls', 'can_add_calls'] },
   { group: 'Team', hint: 'Other staff in their branch.', fields: ['can_view_staff', 'can_add_staff', 'can_edit_staff', 'can_delete_staff'] },
   { group: 'Attendance', hint: 'Own punch is always available. These flags control the attendance module.', fields: ['can_view_attendance', 'can_approve_attendance'] },
@@ -34,6 +35,7 @@ export const PERMISSION_GROUPS = [
 
 const FLAG_FOR_CODE = {
   'leads:view': 'can_view_leads',
+  'leads:view_branch': 'can_view_branch_leads',
   'leads:create': 'can_add_leads',
   'leads:edit': 'can_edit_leads',
   'leads:assign': 'can_assign_leads',
