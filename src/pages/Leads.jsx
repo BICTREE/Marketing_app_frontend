@@ -253,7 +253,7 @@ const Leads = () => {
     enabled: canViewStaff || isAdmin || isManager,
   });
 
-  const { data: leadsResponse, isLoading } = useQuery({
+  const { data: leadsResponse, isLoading, isError, error, refetch } = useQuery({
     queryKey: [
       'leads', page, stageFilter, searchTerm, 
       selectedBranch, selectedSource, selectedSegment, 
@@ -880,7 +880,7 @@ const Leads = () => {
         </div>
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {Object.entries(SOURCE_META).map(([key, meta]) => {
-            const stats = (summaryData || []).find(s => s.source === key) || { total: 0, converted: 0 };
+            const stats = (Array.isArray(summaryData) ? summaryData : []).find(s => s.source === key) || { total: 0, converted: 0 };
             const rate = stats.total > 0 ? Math.round((stats.converted / stats.total) * 100) : 0;
             return (
               <div key={key} className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all group">
@@ -1124,7 +1124,23 @@ const Leads = () => {
           </div>
         </div>
 
-        {!isLoading && groupedLeads.length === 0 && (
+        {!isLoading && isError && (
+          <div className="p-12 text-center">
+            <p className="text-gray-800 font-semibold">Could not load leads</p>
+            <p className="text-sm text-gray-500 mt-1">
+              {getApiErrorMessage(error, 'Please try again.')}
+            </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="mt-4 text-sm font-bold text-[#C9972A] uppercase tracking-wider"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !isError && groupedLeads.length === 0 && (
           <div className="p-12 text-center">
             <p className="text-gray-500">No leads found</p>
           </div>
