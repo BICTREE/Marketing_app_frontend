@@ -528,6 +528,7 @@ const BranchesPage = () => {
                 </div>
 
                 {/* Card Actions Footer */}
+                {isOwner && (
                 <div className="p-4 bg-muted/10 border-t border-border flex items-center justify-end gap-2">
                   <Button 
                     variant="default" 
@@ -549,6 +550,7 @@ const BranchesPage = () => {
                     🏷️ Segments
                   </Button>
                 </div>
+                )}
               </Card>
             ))
           ) : (
@@ -627,6 +629,7 @@ const BranchesPage = () => {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
+                          {isOwner ? (
                           <div className="flex items-center justify-end gap-2">
                             <Button 
                               variant="default" 
@@ -648,6 +651,9 @@ const BranchesPage = () => {
                               Segments
                             </Button>
                           </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">View only</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     )) : (
