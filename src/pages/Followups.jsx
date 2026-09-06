@@ -210,12 +210,16 @@ const Followups = () => {
     onError: () => toast.error('Failed to perform bulk assignment')
   });
 
-  const filteredFollowups = Array.isArray(followups) ? followups.filter(f => 
-    f.lead_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    f.lead_phone?.includes(searchTerm) ||
-    f.note?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    f.assigned_to_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  ) : [];
+  const filteredFollowups = Array.isArray(followups) ? followups.filter(f => {
+    const q = searchTerm.toLowerCase();
+    if (!q) return true;
+    const hay = [
+      f.lead_name, f.lead_phone, f.lead_mobile2, f.note, f.assigned_to_name,
+      f.lead_house_name, f.lead_street, f.lead_village, f.lead_district,
+      f.lead_bride_name,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return q.split(/\s+/).every((term) => hay.includes(term));
+  }) : [];
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -250,7 +254,7 @@ const Followups = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
             <input 
               type="text"
-              placeholder="Search leads or notes..."
+              placeholder="Search phone, address, name, bride..."
               className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-background focus:ring-2 focus:ring-primary/20 outline-none transition-all"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}

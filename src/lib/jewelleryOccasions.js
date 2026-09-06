@@ -59,3 +59,20 @@ export function formatClientPlace(obj = {}) {
     .filter(Boolean)
     .join(', ');
 }
+
+export function leadSearchText(obj = {}) {
+  return [
+    obj.name, obj.phone, obj.mobile2, obj.email,
+    obj.house_name, obj.street, obj.village, obj.panchayath, obj.district, obj.state,
+    obj.bride_name, obj.father_name, obj.notes, obj.product_interest,
+    obj.occasion, obj.occasion_label, obj.referred_by,
+    formatClientPlace(obj),
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+export function leadMatchesSearch(obj, query) {
+  const q = String(query || '').trim().toLowerCase();
+  if (!q) return true;
+  const hay = leadSearchText(obj);
+  return q.split(/\s+/).every((term) => hay.includes(term));
+}

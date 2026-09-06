@@ -41,7 +41,7 @@ const Customers = () => {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-[#C9972A]" size={18} />
           <input 
             type="text" 
-            placeholder="Search by name or phone..."
+            placeholder="Search name, phone, address..."
             className="w-full h-14 pl-12 pr-6 bg-white rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-[#C9972A]/20 transition-all text-sm font-medium"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}

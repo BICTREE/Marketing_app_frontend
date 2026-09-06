@@ -506,7 +506,7 @@ const Leads = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <input
               type="text"
-              placeholder="Search leads..."
+              placeholder="Search name, phone, address, bride..."
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
               className="pl-10 pr-4 h-10 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#C9972A]/40 w-64 bg-white"
@@ -1036,7 +1036,7 @@ const Leads = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <Input
                 type="text"
-                placeholder="Search by name or phone..."
+                placeholder="Search name, phone, address, bride..."
                 value={searchTerm}
                 onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
                 className="pl-10 h-9 text-sm"
@@ -1054,7 +1054,7 @@ const Leads = () => {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <Input
               type="text"
-              placeholder="Search leads..."
+              placeholder="Search name, phone, address, bride..."
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setPage(1); }}
               className="pl-10 h-9 text-sm"
@@ -1067,8 +1067,9 @@ const Leads = () => {
           <table className="w-full text-left hidden md:table">
             <thead>
               <tr className="bg-gray-50 border-b">
-                <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Name</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Phone</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Address</th>
+                <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Name</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Source</th>
                 <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Stage</th>
                 {isAdmin && <th className="px-4 py-3 text-xs font-semibold text-gray-600 uppercase">Branch</th>}
@@ -1080,7 +1081,7 @@ const Leads = () => {
             <tbody className="divide-y">
               {isLoading ? (
                 [1,2,3,4,5].map(i => (
-                  <tr key={i}><td colSpan={8} className="px-4 py-8"><div className="h-8 bg-gray-100 rounded animate-pulse"></div></td></tr>
+                  <tr key={i}><td colSpan={isAdmin ? 9 : 8} className="px-4 py-8"><div className="h-8 bg-gray-100 rounded animate-pulse"></div></td></tr>
                 ))
               ) : groupedLeads.map(lead => (
                 <tr
@@ -1088,6 +1089,19 @@ const Leads = () => {
                   className="hover:bg-gray-50 cursor-pointer"
                   onClick={() => navigate(`${pathPrefix}/${lead.customer || lead.id}`)}
                 >
+                  <td className="px-4 py-3 text-sm text-gray-900 font-semibold whitespace-nowrap">
+                    <div>{lead.phone || 'No phone'}</div>
+                    {lead.mobile2 ? <div className="text-[11px] font-normal text-gray-500">2nd {lead.mobile2}</div> : null}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 max-w-[220px]">
+                    <div>{formatClientPlace(lead) || '—'}</div>
+                    {lead.bride_name || lead.bride_age ? (
+                      <div className="text-[11px] text-rose-700 mt-0.5">
+                        {lead.bride_name ? `Bride ${lead.bride_name}` : 'Bride'}
+                        {lead.bride_age ? ` · age ${lead.bride_age}` : ''}
+                      </div>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-medium">
@@ -1101,12 +1115,6 @@ const Leads = () => {
                         </div>
                       </div>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    <div>{lead.phone}</div>
-                    {lead.mobile2 ? <div className="text-[11px] text-gray-500">2nd {lead.mobile2}</div> : null}
-                    {formatClientPlace(lead) ? <div className="text-[11px] text-gray-500">{formatClientPlace(lead)}</div> : null}
-                    {lead.bride_age ? <div className="text-[11px] text-rose-700">Bride age {lead.bride_age}</div> : null}
                   </td>
                   <td className="px-4 py-3"><SourceBadge source={lead.source} /></td>
                   <td className="px-4 py-3"><StageBadge stage={lead.stage} /></td>
@@ -1157,21 +1165,25 @@ const Leads = () => {
                 className="p-4 hover:bg-gray-50 active:bg-gray-100 cursor-pointer transition-colors"
               >
                 <div className="flex justify-between items-start mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-bold shadow-sm">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-gray-600 font-bold shadow-sm shrink-0">
                       {(lead.name || '?')[0].toUpperCase()}
                     </div>
-                    <div>
-                      <h4 className="font-bold text-gray-900 text-sm flex items-center gap-2">
-                        {lead.name}
-                        {lead.is_hot && <Flame size={14} className="text-red-500" />}
-                      </h4>
-                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                        <Phone size={10} /> {lead.phone}
-                        {lead.mobile2 ? ` · ${lead.mobile2}` : ''}
+                    <div className="min-w-0">
+                      <p className="font-bold text-gray-900 text-sm flex items-center gap-1">
+                        <Phone size={12} className="shrink-0" /> {lead.phone || 'No phone'}
+                        {lead.mobile2 ? <span className="font-normal text-gray-500"> · {lead.mobile2}</span> : null}
                       </p>
-                      {formatClientPlace(lead) ? (
-                        <p className="text-[11px] text-gray-500 mt-0.5">{formatClientPlace(lead)}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">{formatClientPlace(lead) || 'No address'}</p>
+                      <h4 className="text-xs text-gray-500 mt-0.5 flex items-center gap-2">
+                        {lead.name}
+                        {lead.is_hot && <Flame size={12} className="text-red-500" />}
+                      </h4>
+                      {lead.bride_name || lead.bride_age ? (
+                        <p className="text-[11px] text-rose-700 mt-0.5">
+                          {lead.bride_name ? `Bride ${lead.bride_name}` : 'Bride'}
+                          {lead.bride_age ? ` · age ${lead.bride_age}` : ''}
+                        </p>
                       ) : null}
                     </div>
                   </div>
