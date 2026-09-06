@@ -90,7 +90,7 @@ const MessagesCenter = () => {
 
   const { data: usersData } = useQuery({
     queryKey: ['mail-users'],
-    queryFn: () => api.get('/accounts/users/').then((r) => listFrom(r.data)),
+    queryFn: () => api.get('/accounts/users/', { params: { is_active: true, page_size: 500 } }).then((r) => listFrom(r.data)),
     enabled: isOwner,
   });
 

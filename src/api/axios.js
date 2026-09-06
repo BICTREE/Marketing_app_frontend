@@ -78,9 +78,10 @@ api.interceptors.response.use(
 
     if (error.response?.status === 403) {
       const method = (originalRequest?.method || 'get').toLowerCase();
-      // Background GETs (filters, optional lists) should not toast on every page.
-      // Mutations still tell the user why the action was blocked.
-      if (method !== 'get') {
+      const url = originalRequest?.url || '';
+      const isPreview = url.includes('/preview');
+      // Background GETs and live email previews should not toast on every page.
+      if (method !== 'get' && !isPreview) {
         toast.error(getApiErrorMessage(error, "You don't have permission for this action."), {
           id: 'perm-denied',
         });

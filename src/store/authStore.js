@@ -10,7 +10,19 @@ const useAuthStore = create(
       isLoading: false,
 
       // ── Setters ────────────────────────────────────────────────────────────
-      setUser: (user) => set({ user, isAuthenticated: true }),
+      setUser: (user) => {
+        if (user) {
+          try {
+            localStorage.setItem('user', JSON.stringify(user));
+          } catch {
+            /* ignore quota */
+          }
+          set({ user, isAuthenticated: true });
+        } else {
+          localStorage.removeItem('user');
+          set({ user: null, isAuthenticated: false });
+        }
+      },
       clearUser: () => set({ user: null, isAuthenticated: false }),
 
       // ── Initialize on app mount (rehydrate from localStorage) ──────────────

@@ -9,7 +9,7 @@ import { FLAG_FOR_CODE } from '../lib/permissions';
  *   const { user, isOwner, isManager, isStaff, hasRole, login, logout } = useAuth();
  */
 const useAuth = () => {
-  const { user, isAuthenticated, isLoading, login, logout, verifyOtp, resendOtp } = useAuthStore();
+  const { user, isAuthenticated, isLoading, login, logout, verifyOtp, resendOtp, setUser } = useAuthStore();
 
   const role = (user?.role || '').toLowerCase();
 
@@ -62,6 +62,7 @@ const useAuth = () => {
     verifyOtp,
     resendOtp,
     logout,
+    setUser,
 
     /**
      * The dashboard path this user should land on after login

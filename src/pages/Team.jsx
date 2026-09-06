@@ -11,6 +11,7 @@ import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Toolti
 import useAuth from '@/hooks/useAuth';
 import useAuthStore from '@/store/authStore';
 import { FLAG_LABELS, PERMISSION_GROUPS } from '@/lib/permissions';
+import { getMediaUrl } from '@/lib/media';
 
 import {
   Table,
@@ -83,15 +84,6 @@ const TeamPage = () => {
   const [terminationReason, setTerminationReason] = useState('');
   const [isTerminateOpen, setIsTerminateOpen] = useState(false);
 
-  // Helper to ensure media URLs point to backend
-  const getMediaUrl = (url) => {
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api/v1';
-    const host = baseUrl.replace('/api/v1', '');
-    return `${host}${url}`;
-  };
-
   // Fetch Branches
   const { data: branchesData } = useQuery({
     queryKey: ['branches'],
@@ -110,10 +102,9 @@ const TeamPage = () => {
   const { data: teamData, isLoading } = useQuery({
     queryKey: ['team', selectedBranch, debouncedSearch],
     queryFn: () => {
-      const params = {};
+      const params = { is_active: true, page_size: 500 };
       if (selectedBranch !== 'all') params.branch = selectedBranch;
       if (debouncedSearch) params.search = debouncedSearch;
-      params.page_size = 500;
       return api.get('/accounts/users/', { params }).then(res => {
         const data = res.data.results || res.data;
         return Array.isArray(data) ? data : [];
