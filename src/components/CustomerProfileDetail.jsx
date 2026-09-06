@@ -17,6 +17,7 @@ import { Badge } from './ui/badge';
 import { format, formatDistanceToNow } from 'date-fns';
 import { formatGrams, latestLead } from '../lib/utils';
 import { JEWELLERY_OCCASIONS, occasionLabel, formatClientPlace, isMarriageOccasion, FOLLOWUP_DATE_CHIPS, addDaysLocal } from '../lib/jewelleryOccasions';
+import { timelineLabel, timelineStaff, timelineSummary } from '../lib/clientTimeline';
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
 
@@ -38,7 +39,7 @@ const SOURCE_COLORS = {
 const TIMELINE_META = {
   call:               { icon: Phone,         color: 'bg-blue-100 text-blue-600 border-blue-200',   label: 'Call Log' },
   visit_started:      { icon: MapPin,        color: 'bg-indigo-100 text-indigo-600 border-indigo-200', label: 'Visit Started' },
-  visit_completed:    { icon: CheckCircle2,  color: 'bg-emerald-100 text-emerald-600 border-emerald-200', label: 'Visit Completed' },
+  field_visit_assigned: { icon: MapPin,        color: 'bg-indigo-100 text-indigo-600 border-indigo-200', label: 'Field visit assigned' },
   lead_created:       { icon: UserCheck,     color: 'bg-amber-100 text-amber-600 border-amber-200',  label: 'New Lead' },
   followup_scheduled: { icon: Clock,         color: 'bg-orange-100 text-orange-600 border-orange-200',label: 'Follow-up Set' },
   followup_completed: { icon: CheckCircle2,  color: 'bg-teal-100 text-teal-600 border-teal-200',      label: 'Follow-up Done' },
@@ -51,25 +52,13 @@ const TIMELINE_META = {
   profile_change_reverted: { icon: RefreshCw, color: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Extras reverted' },
 };
 
-const formatTimelineDetails = (event) => {
-  const d = event?.details;
-  if (d == null || d === '') return 'No details provided.';
-  if (typeof d === 'string') return d;
-  if (d.outcome || d.notes || d.staff || d.duration != null) {
-    return [
-      d.outcome ? `Outcome: ${String(d.outcome).replace(/_/g, ' ')}` : null,
-      d.staff ? `Staff: ${d.staff}` : null,
-      d.duration != null && d.duration !== '' ? `Duration: ${d.duration}s` : null,
-      d.notes || d.note || d.message || d.details || d.detail || null,
-    ].filter(Boolean).join('\n');
-  }
-  return d.note || d.message || d.details || d.detail || JSON.stringify(d);
-};
+const formatTimelineDetails = (event) => timelineSummary(event);
 
 // ── Sub-Components ────────────────────────────────────────────────────────────
 
 const TimelineEvent = ({ event }) => {
   const meta = TIMELINE_META[event.type] || TIMELINE_META.note;
+  const staffName = timelineStaff(event);
   const isManagerNote = typeof event.details === 'string' && event.details.includes('Manager Note');
 
   return (
@@ -85,7 +74,7 @@ const TimelineEvent = ({ event }) => {
       }`}>
         <div className="flex items-center justify-between mb-1.5">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-gray-900">{meta.label}</span>
+            <span className="text-xs font-bold text-gray-900">{timelineLabel(event.type) || meta.label}</span>
             {isManagerNote && (
               <Badge className="bg-amber-200 text-amber-900 text-[9px] font-extrabold px-1.5 py-0 border-0">
                 👑 MANAGER NOTE
@@ -96,6 +85,9 @@ const TimelineEvent = ({ event }) => {
             {event.date ? formatDistanceToNow(new Date(event.date), { addSuffix: true }) : '—'}
           </span>
         </div>
+        {staffName ? (
+          <p className="text-[11px] font-semibold text-indigo-700 mb-1">Added by {staffName}</p>
+        ) : null}
         <div className="text-xs text-gray-800 font-medium leading-relaxed whitespace-pre-wrap">
           {formatTimelineDetails(event)}
         </div>
