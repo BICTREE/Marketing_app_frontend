@@ -14,7 +14,7 @@ import {
 import { format } from 'date-fns';
 import useAuth from '../hooks/useAuth';
 import { getApiErrorMessage, permissionDeniedMessage } from '../lib/permissions';
-import { JEWELLERY_OCCASIONS } from '../lib/jewelleryOccasions';
+import { JEWELLERY_OCCASIONS, isMarriageOccasion, FOLLOWUP_PRESETS, FOLLOWUP_DATE_CHIPS, addDaysLocal, formatClientPlace } from '../lib/jewelleryOccasions';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend
@@ -88,6 +88,10 @@ const leadSchema = z.object({
   panchayath: z.string().optional().or(z.literal('')),
   district: z.string().optional().or(z.literal('')),
   state: z.string().optional().or(z.literal('')),
+  bride_name: z.string().optional().or(z.literal('')),
+  bride_age: z.string().optional().or(z.literal('')),
+  groom_name: z.string().optional().or(z.literal('')),
+  groom_age: z.string().optional().or(z.literal('')),
   product_interest: z.string().optional(),
   lead_type: z.string().default('normal'),
   followup_choice: z.string().optional(),
@@ -363,6 +367,7 @@ const Leads = () => {
   const watchedPhone = watch('phone');
   const followupChoice = watch('followup_choice');
   const watchedBranch = watch('branch');
+  const watchedOccasion = watch('occasion');
 
   // Debounced phone lookup
   useEffect(() => {
@@ -393,8 +398,17 @@ const Leads = () => {
     if (data.referred_by === '') delete data.referred_by;
     if (data.occasion === '' || data.occasion === 'none') delete data.occasion;
     if (data.occasion_date === '') delete data.occasion_date;
-    ['mobile2', 'house_name', 'street', 'village', 'panchayath', 'district', 'state'].forEach((key) => {
+    ['mobile2', 'house_name', 'street', 'village', 'panchayath', 'district', 'state', 'bride_name', 'groom_name'].forEach((key) => {
       if (!data[key]) delete data[key];
+    });
+    ['bride_age', 'groom_age'].forEach((key) => {
+      if (data[key] === '' || data[key] === undefined) {
+        delete data[key];
+      } else {
+        const n = parseInt(data[key], 10);
+        if (Number.isNaN(n)) delete data[key];
+        else data[key] = n;
+      }
     });
     if (data.product_interest === '') delete data.product_interest;
     if (data.approx_grams === '' || data.approx_grams === undefined) {
@@ -544,30 +558,37 @@ const Leads = () => {
               </Button>
             </DialogTrigger>
             )}
-          <DialogContent className="max-w-lg w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
+          <DialogContent className="max-w-2xl w-[95vw] sm:w-full max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{phoneLookup ? 'Add Lead to Existing Customer' : 'Add New Lead'}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               {/* Phone number first */}
-              <div className="space-y-2">
-                <Label>Phone Number *</Label>
-                <div className="relative">
-                  <Input 
-                    {...register('phone')} 
-                    placeholder="Enter phone number" 
-                    className="pr-10"
-                  />
-                  {isPhoneSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" size={16} />}
-                  {!isPhoneSearching && watchedPhone && watchedPhone.length >= 10 && (
-                    phoneLookup && phoneLookup.exists !== false ? (
-                      <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" size={18} />
-                    ) : (
-                      <User className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                    )
-                  )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Phone number *</Label>
+                  <div className="relative">
+                    <Input 
+                      {...register('phone')} 
+                      placeholder="Primary mobile" 
+                      className="pr-10"
+                    />
+                    {isPhoneSearching && <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400" size={16} />}
+                    {!isPhoneSearching && watchedPhone && watchedPhone.length >= 10 && (
+                      phoneLookup && phoneLookup.exists !== false ? (
+                        <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500" size={18} />
+                      ) : (
+                        <User className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                      )
+                    )}
+                  </div>
+                  {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
                 </div>
-                {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
+                <div className="space-y-2">
+                  <Label>Second number</Label>
+                  <Input {...register('mobile2')} placeholder="Another mobile (optional)" />
+                  <p className="text-[11px] text-muted-foreground">Take it now if they give a second contact.</p>
+                </div>
               </div>
 
               {/* Show existing customer info if found */}
@@ -598,6 +619,18 @@ const Leads = () => {
                 {phoneLookup && phoneLookup.name && (
                   <p className="text-xs text-gray-500">Auto-filled from existing customer profile</p>
                 )}
+              </div>
+
+              <div className="rounded-xl border border-[#C9972A]/30 p-3 space-y-3 bg-amber-50/40">
+                <p className="text-xs font-bold text-amber-950 uppercase tracking-wider">Address / place</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input {...register('house_name')} placeholder="House name" />
+                  <Input {...register('street')} placeholder="Street / road" />
+                  <Input {...register('village')} placeholder="Village / place" />
+                  <Input {...register('panchayath')} placeholder="Panchayath" />
+                  <Input {...register('district')} placeholder="District" />
+                  <Input {...register('state')} placeholder="State" />
+                </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -683,8 +716,8 @@ const Leads = () => {
                   <Input type="number" step="0.001" {...register('approx_grams')} placeholder="Expected weight in grams" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Second number (optional)</Label>
-                  <Input {...register('mobile2')} placeholder="Alternate mobile" />
+                  <Label>Product Interest</Label>
+                  <Input {...register('product_interest')} placeholder="e.g. Gold bangles" />
                 </div>
               </div>
 
@@ -715,22 +748,29 @@ const Leads = () => {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border/70 p-3 space-y-3 bg-muted/20">
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Place / address (optional)</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Input {...register('house_name')} placeholder="House name" />
-                  <Input {...register('street')} placeholder="Street" />
-                  <Input {...register('village')} placeholder="Village / place" />
-                  <Input {...register('panchayath')} placeholder="Panchayath" />
-                  <Input {...register('district')} placeholder="District" />
-                  <Input {...register('state')} placeholder="State" />
+              {isMarriageOccasion(watchedOccasion) && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50/50 p-3 space-y-3">
+                  <p className="text-xs font-bold text-rose-950 uppercase tracking-wider">Marriage details</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>Upcoming bride name</Label>
+                      <Input {...register('bride_name')} placeholder="Bride name" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Upcoming bride age</Label>
+                      <Input type="number" min="1" max="99" {...register('bride_age')} placeholder="e.g. 24" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Groom name</Label>
+                      <Input {...register('groom_name')} placeholder="Groom name (optional)" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Groom age</Label>
+                      <Input type="number" min="1" max="99" {...register('groom_age')} placeholder="e.g. 28" />
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Product Interest</Label>
-                <Input {...register('product_interest')} placeholder="e.g. Diamond Necklace, Gold Bangles" />
-              </div>
+              )}
 
               <div className="space-y-2">
                 <Label>Notes</Label>
@@ -759,10 +799,9 @@ const Leads = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">No follow-up</SelectItem>
-                    <SelectItem value="7_days">7 days</SelectItem>
-                    <SelectItem value="1_month">1 month</SelectItem>
-                    <SelectItem value="6_months">6 months</SelectItem>
-                    <SelectItem value="custom">Custom date</SelectItem>
+                    {FOLLOWUP_PRESETS.filter((p) => p.value !== 'none').map((item) => (
+                      <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -1073,7 +1112,12 @@ const Leads = () => {
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{lead.phone}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    <div>{lead.phone}</div>
+                    {lead.mobile2 ? <div className="text-[11px] text-gray-500">2nd {lead.mobile2}</div> : null}
+                    {formatClientPlace(lead) ? <div className="text-[11px] text-gray-500">{formatClientPlace(lead)}</div> : null}
+                    {lead.bride_age ? <div className="text-[11px] text-rose-700">Bride age {lead.bride_age}</div> : null}
+                  </td>
                   <td className="px-4 py-3"><SourceBadge source={lead.source} /></td>
                   <td className="px-4 py-3"><StageBadge stage={lead.stage} /></td>
                   {isAdmin && <td className="px-4 py-3 text-sm text-gray-600">{lead.branch_name || '—'}</td>}
@@ -1134,7 +1178,11 @@ const Leads = () => {
                       </h4>
                       <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
                         <Phone size={10} /> {lead.phone}
+                        {lead.mobile2 ? ` · ${lead.mobile2}` : ''}
                       </p>
+                      {formatClientPlace(lead) ? (
+                        <p className="text-[11px] text-gray-500 mt-0.5">{formatClientPlace(lead)}</p>
+                      ) : null}
                     </div>
                   </div>
                   <div className="text-right">
@@ -1321,6 +1369,18 @@ const Leads = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold">Scheduled Date &amp; Time *</Label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {FOLLOWUP_DATE_CHIPS.map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      className="h-8 px-2 rounded-lg border border-amber-200 bg-amber-50 text-[11px] font-bold text-amber-900"
+                      onClick={() => setFollowUpForm({ ...followUpForm, scheduled_date: addDaysLocal(chip.days, { withTime: true }) })}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
                 <Input
                   type="datetime-local"
                   required

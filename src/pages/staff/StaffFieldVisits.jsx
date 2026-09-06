@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { MapPin, Navigation, Clock, CheckCircle, Navigation2, FileCheck, Phone, Map as MapIcon, Plus, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { FOLLOWUP_DATE_CHIPS, addDaysLocal } from '@/lib/jewelleryOccasions';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -499,6 +500,18 @@ const StaffFieldVisits = () => {
                   </div>
                   <div>
                     <label className="text-xs font-semibold text-gray-600 block mb-1">Date & Time</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {FOLLOWUP_DATE_CHIPS.map((chip) => (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          className="h-8 px-2 rounded-lg border border-amber-200 bg-amber-50 text-[11px] font-bold text-amber-900"
+                          onClick={() => setCompleteForm((f) => ({ ...f, followup_date: addDaysLocal(chip.days, { withTime: true }) }))}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
                     <input
                       type="datetime-local"
                       value={completeForm.followup_date}

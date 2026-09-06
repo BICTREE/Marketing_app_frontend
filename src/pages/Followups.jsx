@@ -11,6 +11,7 @@ import {
 import { format, isPast, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
 import useAuth from '@/hooks/useAuth';
+import { FOLLOWUP_DATE_CHIPS, addDaysLocal } from '@/lib/jewelleryOccasions';
 import {
   Dialog,
   DialogContent,
@@ -379,7 +380,8 @@ const Followups = () => {
                       {[
                         followup.lead_occasion_label || followup.lead_occasion,
                         followup.lead_occasion_date,
-                        [followup.lead_house_name, followup.lead_village, followup.lead_district].filter(Boolean).join(', '),
+                        followup.lead_bride_age ? `bride age ${followup.lead_bride_age}` : followup.lead_bride_name,
+                        [followup.lead_house_name, followup.lead_street, followup.lead_village, followup.lead_district].filter(Boolean).join(', '),
                       ].filter(Boolean).join(' · ')}
                     </p>
                   )}
@@ -673,6 +675,18 @@ const Followups = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Next Date</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {FOLLOWUP_DATE_CHIPS.map((chip) => (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          className="h-8 px-2 rounded-lg border border-amber-200 bg-amber-50 text-[11px] font-bold text-amber-900"
+                          onClick={() => setCompletionData({ ...completionData, nextDate: addDaysLocal(chip.days, { withTime: true }) })}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
                     <input 
                       type="datetime-local" 
                       className="w-full p-2 rounded-lg border border-border bg-background text-sm"

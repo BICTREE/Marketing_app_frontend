@@ -10,6 +10,7 @@ import {
 
 import api from '@/api/axios';
 import useAuth from '@/hooks/useAuth';
+import { FOLLOWUP_DATE_CHIPS, addDaysLocal } from '@/lib/jewelleryOccasions';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -547,6 +548,18 @@ const CallResultFields = ({ form, setForm }) => (
       </div>
       <div className="space-y-2">
         <Label>Next call date</Label>
+        <div className="flex flex-wrap gap-2">
+          {FOLLOWUP_DATE_CHIPS.map((chip) => (
+            <button
+              key={chip.label}
+              type="button"
+              className="h-8 px-2 rounded-lg border border-amber-200 bg-amber-50 text-[11px] font-bold text-amber-900"
+              onClick={() => setForm((prev) => ({ ...prev, next_followup_date: addDaysLocal(chip.days) }))}
+            >
+              {chip.label}
+            </button>
+          ))}
+        </div>
         <Input
           type="date"
           value={form.next_followup_date}

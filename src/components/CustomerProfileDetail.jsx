@@ -16,7 +16,7 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { format, formatDistanceToNow } from 'date-fns';
 import { formatGrams, latestLead } from '../lib/utils';
-import { JEWELLERY_OCCASIONS, occasionLabel, formatClientPlace } from '../lib/jewelleryOccasions';
+import { JEWELLERY_OCCASIONS, occasionLabel, formatClientPlace, isMarriageOccasion, FOLLOWUP_DATE_CHIPS, addDaysLocal } from '../lib/jewelleryOccasions';
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
 
@@ -180,6 +180,14 @@ const LeadDetail = ({ lead, onReassign }) => {
               <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Place</p>
               <p className="text-xs font-semibold text-gray-800">{formatClientPlace(lead) || '—'}</p>
             </div>
+            {(lead.bride_name || lead.bride_age) && (
+              <div>
+                <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Upcoming bride</p>
+                <p className="text-xs font-semibold text-gray-800">
+                  {[lead.bride_name, lead.bride_age ? `age ${lead.bride_age}` : null].filter(Boolean).join(' · ') || '—'}
+                </p>
+              </div>
+            )}
           </div>
 
           {lead.notes && (
@@ -237,6 +245,10 @@ const ProfileAttributesTab = ({ customer, customerId, canEdit, activeLead }) => 
     state: customer.state || '',
     occasion: activeLead?.occasion || '',
     occasion_date: activeLead?.occasion_date || '',
+    bride_name: activeLead?.bride_name || '',
+    bride_age: activeLead?.bride_age || '',
+    groom_name: activeLead?.groom_name || '',
+    groom_age: activeLead?.groom_age || '',
     notes: customer.notes || activeLead?.notes || '',
   });
 
@@ -377,6 +389,14 @@ const ProfileAttributesTab = ({ customer, customerId, canEdit, activeLead }) => 
                 ))}
               </select>
               <Input type="date" value={extras.occasion_date} onChange={(e) => setExtras({ ...extras, occasion_date: e.target.value })} />
+              {isMarriageOccasion(extras.occasion) && (
+                <>
+                  <Input value={extras.bride_name} onChange={(e) => setExtras({ ...extras, bride_name: e.target.value })} placeholder="Upcoming bride name" />
+                  <Input type="number" min="1" max="99" value={extras.bride_age} onChange={(e) => setExtras({ ...extras, bride_age: e.target.value })} placeholder="Upcoming bride age" />
+                  <Input value={extras.groom_name} onChange={(e) => setExtras({ ...extras, groom_name: e.target.value })} placeholder="Groom name" />
+                  <Input type="number" min="1" max="99" value={extras.groom_age} onChange={(e) => setExtras({ ...extras, groom_age: e.target.value })} placeholder="Groom age" />
+                </>
+              )}
               <Input value={extras.house_name} onChange={(e) => setExtras({ ...extras, house_name: e.target.value })} placeholder="House name" />
               <Input value={extras.street} onChange={(e) => setExtras({ ...extras, street: e.target.value })} placeholder="Street" />
               <Input value={extras.village} onChange={(e) => setExtras({ ...extras, village: e.target.value })} placeholder="Village / place" />
@@ -397,6 +417,12 @@ const ProfileAttributesTab = ({ customer, customerId, canEdit, activeLead }) => 
                   const payload = {};
                   Object.entries(extras).forEach(([k, v]) => {
                     if (String(v || '').trim()) payload[k] = v;
+                  });
+                  ['bride_age', 'groom_age'].forEach((key) => {
+                    if (payload[key] === undefined) return;
+                    const n = parseInt(payload[key], 10);
+                    if (Number.isNaN(n)) delete payload[key];
+                    else payload[key] = n;
                   });
                   if (!Object.keys(payload).length) {
                     toast.error('Fill at least one extra field.');
@@ -721,16 +747,18 @@ const CustomerProfileDetail = ({ customerId }) => {
               </span>
               <a href={`tel:${customer.phone}`} className="font-bold text-indigo-600 hover:underline">{customer.phone}</a>
             </div>
-            {(customer.mobile2 || activeLead?.mobile2) && (
-              <div className="flex items-center justify-between text-gray-700 text-xs">
-                <span className="flex items-center gap-2 text-gray-500 font-semibold">
-                  <Phone size={14} className="text-gray-400" /> Second number
-                </span>
+            <div className="flex items-center justify-between text-gray-700 text-xs">
+              <span className="flex items-center gap-2 text-gray-500 font-semibold">
+                <Phone size={14} className="text-gray-400" /> Second number
+              </span>
+              {(customer.mobile2 || activeLead?.mobile2) ? (
                 <a href={`tel:${customer.mobile2 || activeLead?.mobile2}`} className="font-bold text-indigo-600 hover:underline">
                   {customer.mobile2 || activeLead?.mobile2}
                 </a>
-              </div>
-            )}
+              ) : (
+                <span className="text-gray-400 italic">Not captured yet</span>
+              )}
+            </div>
             {customer.phone && (
               <a href={`tel:${customer.phone}`} className="block">
                 <Button type="button" className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs">
@@ -748,12 +776,19 @@ const CustomerProfileDetail = ({ customerId }) => {
               </div>
             )}
 
-            {(formatClientPlace(customer) || customer.location) && (
+            {(formatClientPlace(customer) || customer.location) ? (
               <div className="flex items-start justify-between text-gray-700 text-xs gap-3">
                 <span className="flex items-center gap-2 text-gray-500 font-semibold shrink-0">
                   <MapPin size={14} className="text-gray-400" /> Place
                 </span>
                 <span className="font-semibold text-gray-800 text-right">{formatClientPlace(customer) || customer.location}</span>
+              </div>
+            ) : (
+              <div className="flex items-start justify-between text-gray-700 text-xs gap-3">
+                <span className="flex items-center gap-2 text-gray-500 font-semibold shrink-0">
+                  <MapPin size={14} className="text-gray-400" /> Place
+                </span>
+                <span className="text-gray-400 italic">Not captured yet</span>
               </div>
             )}
             {(activeLead?.occasion || activeLead?.occasion_date) && (
@@ -764,6 +799,7 @@ const CustomerProfileDetail = ({ customerId }) => {
                 <span className="font-semibold text-gray-800 text-right">
                   {occasionLabel(activeLead.occasion) || activeLead.occasion}
                   {activeLead.occasion_date ? ` · ${activeLead.occasion_date}` : ''}
+                  {activeLead.bride_age ? ` · bride age ${activeLead.bride_age}` : activeLead.bride_name ? ` · ${activeLead.bride_name}` : ''}
                 </span>
               </div>
             )}
@@ -1136,6 +1172,18 @@ const CustomerProfileDetail = ({ customerId }) => {
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Next call date</Label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {FOLLOWUP_DATE_CHIPS.map((chip) => (
+                        <button
+                          key={chip.label}
+                          type="button"
+                          className="h-8 px-2 rounded-lg border border-amber-200 bg-amber-50 text-[11px] font-bold text-amber-900"
+                          onClick={() => setCallLogForm({ ...callLogForm, next_followup_date: addDaysLocal(chip.days) })}
+                        >
+                          {chip.label}
+                        </button>
+                      ))}
+                    </div>
                     <Input
                       type="date"
                       className="h-10 rounded-xl text-xs"
