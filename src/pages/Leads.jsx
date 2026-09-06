@@ -90,8 +90,6 @@ const leadSchema = z.object({
   state: z.string().optional().or(z.literal('')),
   bride_name: z.string().optional().or(z.literal('')),
   bride_age: z.string().optional().or(z.literal('')),
-  groom_name: z.string().optional().or(z.literal('')),
-  groom_age: z.string().optional().or(z.literal('')),
   product_interest: z.string().optional(),
   lead_type: z.string().default('normal'),
   followup_choice: z.string().optional(),
@@ -398,10 +396,10 @@ const Leads = () => {
     if (data.referred_by === '') delete data.referred_by;
     if (data.occasion === '' || data.occasion === 'none') delete data.occasion;
     if (data.occasion_date === '') delete data.occasion_date;
-    ['mobile2', 'house_name', 'street', 'village', 'panchayath', 'district', 'state', 'bride_name', 'groom_name'].forEach((key) => {
+    ['mobile2', 'house_name', 'street', 'village', 'panchayath', 'district', 'state', 'bride_name'].forEach((key) => {
       if (!data[key]) delete data[key];
     });
-    ['bride_age', 'groom_age'].forEach((key) => {
+    ['bride_age'].forEach((key) => {
       if (data[key] === '' || data[key] === undefined) {
         delete data[key];
       } else {
@@ -759,14 +757,6 @@ const Leads = () => {
                     <div className="space-y-1">
                       <Label>Upcoming bride age</Label>
                       <Input type="number" min="1" max="99" {...register('bride_age')} placeholder="e.g. 24" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Groom name</Label>
-                      <Input {...register('groom_name')} placeholder="Groom name (optional)" />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Groom age</Label>
-                      <Input type="number" min="1" max="99" {...register('groom_age')} placeholder="e.g. 28" />
                     </div>
                   </div>
                 </div>

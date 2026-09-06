@@ -247,8 +247,6 @@ const ProfileAttributesTab = ({ customer, customerId, canEdit, activeLead }) => 
     occasion_date: activeLead?.occasion_date || '',
     bride_name: activeLead?.bride_name || '',
     bride_age: activeLead?.bride_age || '',
-    groom_name: activeLead?.groom_name || '',
-    groom_age: activeLead?.groom_age || '',
     notes: customer.notes || activeLead?.notes || '',
   });
 
@@ -393,8 +391,6 @@ const ProfileAttributesTab = ({ customer, customerId, canEdit, activeLead }) => 
                 <>
                   <Input value={extras.bride_name} onChange={(e) => setExtras({ ...extras, bride_name: e.target.value })} placeholder="Upcoming bride name" />
                   <Input type="number" min="1" max="99" value={extras.bride_age} onChange={(e) => setExtras({ ...extras, bride_age: e.target.value })} placeholder="Upcoming bride age" />
-                  <Input value={extras.groom_name} onChange={(e) => setExtras({ ...extras, groom_name: e.target.value })} placeholder="Groom name" />
-                  <Input type="number" min="1" max="99" value={extras.groom_age} onChange={(e) => setExtras({ ...extras, groom_age: e.target.value })} placeholder="Groom age" />
                 </>
               )}
               <Input value={extras.house_name} onChange={(e) => setExtras({ ...extras, house_name: e.target.value })} placeholder="House name" />
@@ -418,7 +414,7 @@ const ProfileAttributesTab = ({ customer, customerId, canEdit, activeLead }) => 
                   Object.entries(extras).forEach(([k, v]) => {
                     if (String(v || '').trim()) payload[k] = v;
                   });
-                  ['bride_age', 'groom_age'].forEach((key) => {
+                  ['bride_age'].forEach((key) => {
                     if (payload[key] === undefined) return;
                     const n = parseInt(payload[key], 10);
                     if (Number.isNaN(n)) delete payload[key];
