@@ -14,6 +14,7 @@ import {
 import { format } from 'date-fns';
 import useAuth from '../hooks/useAuth';
 import { getApiErrorMessage, permissionDeniedMessage } from '../lib/permissions';
+import { JEWELLERY_OCCASIONS } from '../lib/jewelleryOccasions';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell, Legend
@@ -79,6 +80,14 @@ const leadSchema = z.object({
   referred_by: z.string().optional(),
   approx_grams: z.string().optional().or(z.number()).optional(),
   occasion: z.string().optional(),
+  occasion_date: z.string().optional().or(z.literal('')),
+  mobile2: z.string().optional().or(z.literal('')),
+  house_name: z.string().optional().or(z.literal('')),
+  street: z.string().optional().or(z.literal('')),
+  village: z.string().optional().or(z.literal('')),
+  panchayath: z.string().optional().or(z.literal('')),
+  district: z.string().optional().or(z.literal('')),
+  state: z.string().optional().or(z.literal('')),
   product_interest: z.string().optional(),
   lead_type: z.string().default('normal'),
   followup_choice: z.string().optional(),
@@ -382,7 +391,11 @@ const Leads = () => {
     if (data.notes === '') delete data.notes;
     if (data.recommendations === '') delete data.recommendations;
     if (data.referred_by === '') delete data.referred_by;
-    if (data.occasion === '') delete data.occasion;
+    if (data.occasion === '' || data.occasion === 'none') delete data.occasion;
+    if (data.occasion_date === '') delete data.occasion_date;
+    ['mobile2', 'house_name', 'street', 'village', 'panchayath', 'district', 'state'].forEach((key) => {
+      if (!data[key]) delete data[key];
+    });
     if (data.product_interest === '') delete data.product_interest;
     if (data.approx_grams === '' || data.approx_grams === undefined) {
       delete data.approx_grams;
@@ -670,8 +683,47 @@ const Leads = () => {
                   <Input type="number" step="0.001" {...register('approx_grams')} placeholder="Expected weight in grams" />
                 </div>
                 <div className="space-y-2">
+                  <Label>Second number (optional)</Label>
+                  <Input {...register('mobile2')} placeholder="Alternate mobile" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <Label>Occasion</Label>
-                  <Input {...register('occasion')} placeholder="e.g. Wedding, Anniversary" />
+                  <Controller
+                    name="occasion"
+                    control={control}
+                    render={({ field }) => (
+                      <Select value={field.value || 'none'} onValueChange={(v) => field.onChange(v === 'none' ? '' : v)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select occasion" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Not specified</SelectItem>
+                          {JEWELLERY_OCCASIONS.map((item) => (
+                            <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Occasion / function date</Label>
+                  <Input type="date" {...register('occasion_date')} />
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/70 p-3 space-y-3 bg-muted/20">
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Place / address (optional)</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input {...register('house_name')} placeholder="House name" />
+                  <Input {...register('street')} placeholder="Street" />
+                  <Input {...register('village')} placeholder="Village / place" />
+                  <Input {...register('panchayath')} placeholder="Panchayath" />
+                  <Input {...register('district')} placeholder="District" />
+                  <Input {...register('state')} placeholder="State" />
                 </div>
               </div>
 

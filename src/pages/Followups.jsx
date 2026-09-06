@@ -372,7 +372,17 @@ const Followups = () => {
                   <p className="text-sm text-muted-foreground flex items-center gap-1.5">
                     <Phone size={13} className="opacity-70" />
                     {followup.lead_phone || 'No phone'}
+                    {followup.lead_mobile2 ? ` · ${followup.lead_mobile2}` : ''}
                   </p>
+                  {(followup.lead_occasion_label || followup.lead_occasion || followup.lead_village || followup.lead_house_name) && (
+                    <p className="text-[12px] text-slate-600">
+                      {[
+                        followup.lead_occasion_label || followup.lead_occasion,
+                        followup.lead_occasion_date,
+                        [followup.lead_house_name, followup.lead_village, followup.lead_district].filter(Boolean).join(', '),
+                      ].filter(Boolean).join(' · ')}
+                    </p>
+                  )}
                 </div>
 
                 <div className="mx-5 mb-3 rounded-xl bg-[#F7F3EB] px-3.5 py-3 space-y-2">

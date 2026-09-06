@@ -115,6 +115,18 @@ const NotificationsPage = () => {
     }
   });
 
+  const profileReviewMutation = useMutation({
+    mutationFn: ({ changeId, decision }) => api.post(`/leads/profile-changes/${changeId}/${decision}/`, { note: managerNotes }),
+    onSuccess: (_, vars) => {
+      toast.success(vars.decision === 'approve' ? 'Extras kept on the client profile.' : 'Extras reverted.');
+      setSelectedReviewNotif(null);
+      setManagerNotes('');
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['customer'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || 'Could not review extras.'),
+  });
+
   const createNotifMutation = useMutation({
     mutationFn: (formData) => api.post('/notifications/notifications/', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -328,9 +340,9 @@ const NotificationsPage = () => {
                   onClick={() => {
                     if (!notif.is_read) markReadMutation.mutate(notif.id);
                     if (
-                      ['field_visit_outcome', 'field_visit_report', 'visit_returned', 'followup_returned'].includes(notif.data?.type) ||
-                      ['visit_returned', 'followup_returned'].includes(notif.data?.action) ||
-                      notif.data?.visit_id || notif.data?.lead_id
+                      ['field_visit_outcome', 'field_visit_report', 'visit_returned', 'followup_returned', 'customer_profile_review'].includes(notif.data?.type) ||
+                      ['visit_returned', 'followup_returned', 'customer_profile_review'].includes(notif.data?.action) ||
+                      notif.data?.visit_id || notif.data?.lead_id || notif.data?.change_id
                     ) {
                       setSelectedReviewNotif(notif);
                     }
@@ -409,7 +421,9 @@ const NotificationsPage = () => {
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-amber-900">
-              {selectedReviewNotif?.data?.action === 'visit_returned' || selectedReviewNotif?.data?.action === 'followup_returned'
+              {selectedReviewNotif?.data?.action === 'customer_profile_review'
+                ? 'Review client extras'
+                : selectedReviewNotif?.data?.action === 'visit_returned' || selectedReviewNotif?.data?.action === 'followup_returned'
                 ? '⚠️ Manager Review & Issue Resolution'
                 : '👑 Manager Field Visit Review & Decision'
               }
@@ -512,6 +526,35 @@ const NotificationsPage = () => {
                 />
               </div>
 
+              {selectedReviewNotif.data?.action === 'customer_profile_review' && selectedReviewNotif.data?.change_id ? (
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  <Button
+                    size="sm"
+                    className="bg-[#0F6E56] hover:bg-[#094d3c] text-white font-semibold text-xs"
+                    disabled={profileReviewMutation.isPending}
+                    onClick={() => profileReviewMutation.mutate({
+                      changeId: selectedReviewNotif.data.change_id,
+                      decision: 'approve',
+                    })}
+                  >
+                    {profileReviewMutation.isPending ? <Loader2 className="animate-spin mr-1.5" size={14} /> : null}
+                    Keep extras
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-rose-300 text-rose-700 font-semibold text-xs"
+                    disabled={profileReviewMutation.isPending}
+                    onClick={() => profileReviewMutation.mutate({
+                      changeId: selectedReviewNotif.data.change_id,
+                      decision: 'reject',
+                    })}
+                  >
+                    Revert extras
+                  </Button>
+                </div>
+              ) : (
+              <>
               {/* Primary Action: Save Manager Review Note */}
               <div className="space-y-2 pt-2">
                 <Button
@@ -585,6 +628,8 @@ const NotificationsPage = () => {
                   </Button>
                 </div>
               </div>
+              </>
+              )}
             </div>
           )}
         </DialogContent>

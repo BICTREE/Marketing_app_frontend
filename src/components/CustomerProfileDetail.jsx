@@ -16,6 +16,7 @@ import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { format, formatDistanceToNow } from 'date-fns';
 import { formatGrams, latestLead } from '../lib/utils';
+import { JEWELLERY_OCCASIONS, occasionLabel, formatClientPlace } from '../lib/jewelleryOccasions';
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
 
@@ -44,6 +45,10 @@ const TIMELINE_META = {
   call_logged:        { icon: Phone,         color: 'bg-blue-100 text-blue-600 border-blue-200',      label: 'Call Log' },
   sale:               { icon: ShoppingBag,   color: 'bg-emerald-100 text-emerald-600 border-emerald-200',  label: 'Closed Sale' },
   note:               { icon: StickyNote,    color: 'bg-purple-100 text-purple-600 border-purple-200', label: 'Manager Note / Activity' },
+  profile_extras_added: { icon: Edit2,       color: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Extra details added' },
+  profile_updated:    { icon: Edit2,         color: 'bg-slate-100 text-slate-600 border-slate-200', label: 'Profile updated' },
+  profile_change_approved: { icon: CheckCircle2, color: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Extras kept' },
+  profile_change_reverted: { icon: RefreshCw, color: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Extras reverted' },
 };
 
 const formatTimelineDetails = (event) => {
@@ -55,10 +60,10 @@ const formatTimelineDetails = (event) => {
       d.outcome ? `Outcome: ${String(d.outcome).replace(/_/g, ' ')}` : null,
       d.staff ? `Staff: ${d.staff}` : null,
       d.duration != null && d.duration !== '' ? `Duration: ${d.duration}s` : null,
-      d.notes || d.note || d.message || d.details || null,
+      d.notes || d.note || d.message || d.details || d.detail || null,
     ].filter(Boolean).join('\n');
   }
-  return d.note || d.message || d.details || JSON.stringify(d);
+  return d.note || d.message || d.details || d.detail || JSON.stringify(d);
 };
 
 // ── Sub-Components ────────────────────────────────────────────────────────────
@@ -158,11 +163,22 @@ const LeadDetail = ({ lead, onReassign }) => {
             </div>
             <div>
               <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Occasion</p>
-              <p className="text-xs font-semibold text-gray-800">{lead.occasion || '—'}</p>
+              <p className="text-xs font-semibold text-gray-800">
+                {lead.occasion_label || occasionLabel(lead.occasion) || '—'}
+                {lead.occasion_date ? ` · ${lead.occasion_date}` : ''}
+              </p>
             </div>
             <div>
               <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Assigned Staff</p>
               <p className="text-xs font-bold text-indigo-700">{lead.assigned_to_name || 'Unassigned'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Second number</p>
+              <p className="text-xs font-semibold text-gray-800">{lead.mobile2 || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] text-gray-400 font-bold uppercase mb-1">Place</p>
+              <p className="text-xs font-semibold text-gray-800">{formatClientPlace(lead) || '—'}</p>
             </div>
           </div>
 
@@ -197,26 +213,56 @@ const LeadDetail = ({ lead, onReassign }) => {
 
 const ATTR_FIELDS = [
   { label: 'House / Building', key: 'house_name', icon: Home, placeholder: 'e.g. Sunshine Villa' },
+  { label: 'Street',           key: 'street',      icon: Map, placeholder: 'Street / road' },
   { label: "Father's Name",    key: 'father_name', icon: User, placeholder: 'e.g. Rajan K.' },
   { label: 'Village / Town',   key: 'village',     icon: Globe, placeholder: 'e.g. Sullia' },
   { label: 'District',         key: 'district',    icon: MapPin, placeholder: 'e.g. Dakshina Kannada' },
   { label: 'Panchayath',       key: 'panchayath',  icon: Map, placeholder: 'e.g. Sullia Gram Panchayath' },
+  { label: 'State',            key: 'state',       icon: Globe, placeholder: 'e.g. Kerala' },
   { label: 'Alternate Phone',  key: 'mobile2',     icon: Phone, placeholder: 'e.g. 9876543210' },
 ];
 
-const ProfileAttributesTab = ({ customer, customerId }) => {
+const ProfileAttributesTab = ({ customer, customerId, canEdit, activeLead }) => {
   const queryClient = useQueryClient();
   const [editingKey, setEditingKey] = useState(null);
   const [draftValue, setDraftValue] = useState('');
+  const [extraOpen, setExtraOpen] = useState(false);
+  const [extras, setExtras] = useState({
+    mobile2: customer.mobile2 || '',
+    house_name: customer.house_name || '',
+    street: customer.street || '',
+    village: customer.village || '',
+    panchayath: customer.panchayath || '',
+    district: customer.district || '',
+    state: customer.state || '',
+    occasion: activeLead?.occasion || '',
+    occasion_date: activeLead?.occasion_date || '',
+    notes: customer.notes || activeLead?.notes || '',
+  });
 
   const patchMutation = useMutation({
     mutationFn: (data) => api.patch(`/leads/customers/${customerId}/`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
       setEditingKey(null);
-      toast.success('Profile attribute updated!');
+      toast.success('Saved. If you added extras, a manager can review them.');
     },
     onError: (err) => toast.error('Failed to save: ' + (err.response?.data?.detail || err.message)),
+  });
+
+  const extrasMutation = useMutation({
+    mutationFn: (data) => api.post('/leads/profile-changes/', {
+      customer: customerId,
+      lead: activeLead?.id || null,
+      proposed_data: data,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      setExtraOpen(false);
+      toast.success('Extra details saved. Manager will review to keep or revert.');
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || 'Could not save extras.'),
   });
 
   const startEdit = (field) => {
@@ -232,13 +278,13 @@ const ProfileAttributesTab = ({ customer, customerId }) => {
   };
 
   return (
-    <div className="animate-in fade-in duration-300">
-      <div className="flex items-center justify-between mb-6">
+    <div className="animate-in fade-in duration-300 space-y-8">
+      <div className="flex items-center justify-between mb-2">
         <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
           <Home size={18} className="text-[#C9972A]" /> Profile Attributes &amp; Demographics
         </h3>
         <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
-          Click ✏ to edit any attribute
+          {canEdit ? 'Click ✏ to edit any attribute' : 'View only'}
         </span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -284,7 +330,7 @@ const ProfileAttributesTab = ({ customer, customerId }) => {
                     </p>
                   )}
                 </div>
-                {!isEditing && (
+                {canEdit && !isEditing && (
                   <button onClick={() => startEdit(field)} className="p-1.5 text-gray-400 hover:text-[#C9972A] transition-colors">
                     <Edit2 size={13} />
                   </button>
@@ -293,7 +339,79 @@ const ProfileAttributesTab = ({ customer, customerId }) => {
             </div>
           );
         })}
+        <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-4">
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Occasion</p>
+          <p className="text-xs font-bold text-gray-900 mt-1">
+            {occasionLabel(activeLead?.occasion) || activeLead?.occasion || 'Not specified'}
+            {activeLead?.occasion_date ? ` · ${activeLead.occasion_date}` : ''}
+          </p>
+        </div>
+        <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-4">
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Primary phone</p>
+          <p className="text-xs font-bold text-gray-900 mt-1">{customer.phone || '—'}</p>
+        </div>
       </div>
+
+      {canEdit && (
+        <div className="rounded-2xl border border-amber-200/70 bg-amber-50/40 p-5 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-bold text-amber-950">Add extra details</h4>
+              <p className="text-[11px] text-amber-800">Second number, place, occasion. Saved now; a manager reviews later extras.</p>
+            </div>
+            <Button type="button" size="sm" variant="outline" onClick={() => setExtraOpen((v) => !v)}>
+              {extraOpen ? 'Close' : 'Open form'}
+            </Button>
+          </div>
+          {extraOpen && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Input value={extras.mobile2} onChange={(e) => setExtras({ ...extras, mobile2: e.target.value })} placeholder="Second number" />
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-xs"
+                value={extras.occasion || 'none'}
+                onChange={(e) => setExtras({ ...extras, occasion: e.target.value === 'none' ? '' : e.target.value })}
+              >
+                <option value="none">Occasion</option>
+                {JEWELLERY_OCCASIONS.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label}</option>
+                ))}
+              </select>
+              <Input type="date" value={extras.occasion_date} onChange={(e) => setExtras({ ...extras, occasion_date: e.target.value })} />
+              <Input value={extras.house_name} onChange={(e) => setExtras({ ...extras, house_name: e.target.value })} placeholder="House name" />
+              <Input value={extras.street} onChange={(e) => setExtras({ ...extras, street: e.target.value })} placeholder="Street" />
+              <Input value={extras.village} onChange={(e) => setExtras({ ...extras, village: e.target.value })} placeholder="Village / place" />
+              <Input value={extras.panchayath} onChange={(e) => setExtras({ ...extras, panchayath: e.target.value })} placeholder="Panchayath" />
+              <Input value={extras.district} onChange={(e) => setExtras({ ...extras, district: e.target.value })} placeholder="District" />
+              <Input value={extras.state} onChange={(e) => setExtras({ ...extras, state: e.target.value })} placeholder="State" />
+              <textarea
+                className="sm:col-span-2 min-h-[72px] rounded-md border p-3 text-xs"
+                placeholder="Notes (English or Malayalam)"
+                value={extras.notes}
+                onChange={(e) => setExtras({ ...extras, notes: e.target.value })}
+              />
+              <Button
+                type="button"
+                className="sm:col-span-2"
+                disabled={extrasMutation.isPending}
+                onClick={() => {
+                  const payload = {};
+                  Object.entries(extras).forEach(([k, v]) => {
+                    if (String(v || '').trim()) payload[k] = v;
+                  });
+                  if (!Object.keys(payload).length) {
+                    toast.error('Fill at least one extra field.');
+                    return;
+                  }
+                  extrasMutation.mutate(payload);
+                }}
+              >
+                {extrasMutation.isPending ? <Loader2 className="animate-spin mr-2" size={14} /> : null}
+                Save extra details
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
@@ -425,6 +543,16 @@ const CustomerProfileDetail = ({ customerId }) => {
     onError: (err) => toast.error("Update failed: " + (err.response?.data?.detail || err.message))
   });
 
+  const reviewChangeMutation = useMutation({
+    mutationFn: ({ id, decision, note }) => api.post(`/leads/profile-changes/${id}/${decision}/`, { note }),
+    onSuccess: (_, vars) => {
+      toast.success(vars.decision === 'approve' ? 'Extras kept.' : 'Extras reverted.');
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+    },
+    onError: (err) => toast.error(err.response?.data?.detail || 'Review failed.'),
+  });
+
   const logProfileCallMutation = useMutation({
     mutationFn: (payload) => api.post('/calls/call-logs/', payload),
     onSuccess: () => {
@@ -507,6 +635,7 @@ const CustomerProfileDetail = ({ customerId }) => {
 
             {/* Priority & Stage Badges */}
             <div className="flex items-center gap-2 mt-1 mb-4 flex-wrap justify-center">
+              {canEditLead ? (
               <select
                 value={customer.temperature || 'warm'}
                 onChange={(e) => tempMutation.mutate(e.target.value)}
@@ -522,6 +651,11 @@ const CustomerProfileDetail = ({ customerId }) => {
                 <option value="warm">☀️ WARM PRIORITY</option>
                 <option value="cold">❄️ COLD PRIORITY</option>
               </select>
+              ) : (
+                <Badge className="text-[10px] font-extrabold uppercase border-0">
+                  {(customer.temperature || 'warm').toUpperCase()} PRIORITY
+                </Badge>
+              )}
 
               {activeLead?.stage && (
                 <Badge className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase px-2.5 py-1 border-0">
@@ -571,11 +705,13 @@ const CustomerProfileDetail = ({ customerId }) => {
               Customer since {customer.created_at ? format(new Date(customer.created_at), 'MMMM yyyy') : 'Recently'}
             </p>
             
+            {canEditLead && (
             <div className="flex gap-2 w-full">
               <Button onClick={() => { setEditData(customer); setIsEditing(true); }} className="flex-1 bg-gray-900 hover:bg-black text-white rounded-xl shadow-sm h-10 font-bold text-xs">
                 <Edit2 size={13} className="mr-1.5" /> Edit Profile
               </Button>
             </div>
+            )}
           </div>
 
           <div className="space-y-3 pt-6 border-t border-gray-100 mt-6">
@@ -585,6 +721,16 @@ const CustomerProfileDetail = ({ customerId }) => {
               </span>
               <a href={`tel:${customer.phone}`} className="font-bold text-indigo-600 hover:underline">{customer.phone}</a>
             </div>
+            {(customer.mobile2 || activeLead?.mobile2) && (
+              <div className="flex items-center justify-between text-gray-700 text-xs">
+                <span className="flex items-center gap-2 text-gray-500 font-semibold">
+                  <Phone size={14} className="text-gray-400" /> Second number
+                </span>
+                <a href={`tel:${customer.mobile2 || activeLead?.mobile2}`} className="font-bold text-indigo-600 hover:underline">
+                  {customer.mobile2 || activeLead?.mobile2}
+                </a>
+              </div>
+            )}
             {customer.phone && (
               <a href={`tel:${customer.phone}`} className="block">
                 <Button type="button" className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs">
@@ -602,12 +748,23 @@ const CustomerProfileDetail = ({ customerId }) => {
               </div>
             )}
 
-            {customer.location && (
-              <div className="flex items-center justify-between text-gray-700 text-xs">
-                <span className="flex items-center gap-2 text-gray-500 font-semibold">
-                  <MapPin size={14} className="text-gray-400" /> Location
+            {(formatClientPlace(customer) || customer.location) && (
+              <div className="flex items-start justify-between text-gray-700 text-xs gap-3">
+                <span className="flex items-center gap-2 text-gray-500 font-semibold shrink-0">
+                  <MapPin size={14} className="text-gray-400" /> Place
                 </span>
-                <span className="font-semibold text-gray-800">{customer.location}</span>
+                <span className="font-semibold text-gray-800 text-right">{formatClientPlace(customer) || customer.location}</span>
+              </div>
+            )}
+            {(activeLead?.occasion || activeLead?.occasion_date) && (
+              <div className="flex items-start justify-between text-gray-700 text-xs gap-3">
+                <span className="flex items-center gap-2 text-gray-500 font-semibold shrink-0">
+                  <Gift size={14} className="text-gray-400" /> Occasion
+                </span>
+                <span className="font-semibold text-gray-800 text-right">
+                  {occasionLabel(activeLead.occasion) || activeLead.occasion}
+                  {activeLead.occasion_date ? ` · ${activeLead.occasion_date}` : ''}
+                </span>
               </div>
             )}
           </div>
@@ -642,6 +799,48 @@ const CustomerProfileDetail = ({ customerId }) => {
         <div className="mb-6">
           <CustomerQuickActions customer={customer} />
         </div>
+
+        {(customer.pending_profile_changes || []).length > 0 && (
+          <div className="bg-sky-50 border border-sky-200 rounded-3xl p-5 mb-6 space-y-3">
+            <h3 className="text-sm font-bold text-sky-950">Pending extra-detail review</h3>
+            {customer.pending_profile_changes.map((change) => (
+              <div key={change.id} className="rounded-2xl bg-white border border-sky-100 p-4 text-xs space-y-2">
+                <p className="font-semibold text-slate-800">
+                  {(change.requested_by_name || 'Staff')} added extras
+                  {change.created_at ? ` · ${format(new Date(change.created_at), 'dd MMM, h:mm a')}` : ''}
+                </p>
+                <p className="text-slate-600 whitespace-pre-wrap">
+                  {JSON.stringify(change.proposed_data?.lead || change.proposed_data?.customer || change.proposed_data, null, 0)
+                    .replace(/[{}"']/g, '')
+                    .replace(/,/g, ', ')}
+                </p>
+                {canManagerDecide ? (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="h-8 text-[11px]"
+                      disabled={reviewChangeMutation.isPending}
+                      onClick={() => reviewChangeMutation.mutate({ id: change.id, decision: 'approve' })}
+                    >
+                      Keep extras
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-[11px] border-rose-200 text-rose-700"
+                      disabled={reviewChangeMutation.isPending}
+                      onClick={() => reviewChangeMutation.mutate({ id: change.id, decision: 'reject' })}
+                    >
+                      Revert
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-sky-800">Waiting for a manager to keep or revert these details.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Manager Decision & Feedback Action Card (FEATURED ON TOP FOR ADMIN/MANAGER) */}
         {canManagerDecide && activeLead && (
@@ -801,15 +1000,39 @@ const CustomerProfileDetail = ({ customerId }) => {
                   <StickyNote size={18} className="text-[#C9972A]" /> Executive Notes &amp; Manager Review History
                 </h3>
                 {customer.notes ? (
-                  <div className="bg-amber-50/50 border border-amber-200/60 rounded-2xl p-5 shadow-2xs">
+                  <div className="bg-amber-50/50 border border-amber-200/60 rounded-2xl p-5 shadow-2xs mb-3">
                     <p className="text-xs text-amber-950 leading-relaxed font-medium whitespace-pre-wrap">
                       {customer.notes}
                     </p>
                   </div>
-                ) : (
-                  <div className="bg-gray-50 rounded-2xl p-6 text-center border border-dashed border-gray-200">
-                    <p className="text-xs text-gray-500 font-medium">No internal manager notes saved yet. Use the box above to add notes.</p>
+                ) : null}
+                {activeLead?.notes && activeLead.notes !== customer.notes ? (
+                  <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 shadow-2xs">
+                    <p className="text-[10px] font-bold text-slate-600 uppercase mb-1">Lead notes</p>
+                    <p className="text-xs text-slate-900 leading-relaxed font-medium whitespace-pre-wrap">
+                      {activeLead.notes}
+                    </p>
                   </div>
+                ) : null}
+                {!customer.notes && !activeLead?.notes ? (
+                  <div className="bg-gray-50 rounded-2xl p-6 text-center border border-dashed border-gray-200">
+                    <p className="text-xs text-gray-500 font-medium">No notes saved yet.</p>
+                  </div>
+                ) : null}
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2 mb-4">
+                  <Clock size={18} className="text-[#C9972A]" /> Recent timeline
+                </h3>
+                {(customer.timeline || []).length > 0 ? (
+                  <div className="max-w-2xl">
+                    {[...(customer.timeline || [])].slice(-5).reverse().map((ev, i) => (
+                      <TimelineEvent key={`ov-${i}`} event={ev} />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500">No timeline events yet. Calls, extras, and follow-ups appear here.</p>
                 )}
               </div>
 
@@ -1041,7 +1264,12 @@ const CustomerProfileDetail = ({ customerId }) => {
 
           {/* TAB: DETAILS */}
           {activeTab === 'details' && (
-            <ProfileAttributesTab customer={customer} customerId={customerId} />
+            <ProfileAttributesTab
+              customer={customer}
+              customerId={customerId}
+              canEdit={canEditLead}
+              activeLead={activeLead}
+            />
           )}
 
         </div>
