@@ -7,6 +7,8 @@ import {
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
 import { latestLead, indianWhatsAppNumber } from '../lib/utils';
+import { FOLLOWUP_DATE_CHIPS, addDaysLocal } from '../lib/jewelleryOccasions';
+import { followupDueLabel, pipelinePurpose } from '../lib/clientTimeline';
 
 const WHATSAPP_TEMPLATES = [
   { label: 'Follow-up', text: (name) => `Hi ${name}! 😊 Following up on your visit to Bindu Jewellery. Would you like to come in and take a look at our latest collection?` },
@@ -297,6 +299,18 @@ export default function CustomerQuickActions({ customer }) {
 
             <div>
               <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Date & Time</label>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {FOLLOWUP_DATE_CHIPS.map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    onClick={() => setReminder(r => ({ ...r, date: addDaysLocal(chip.days, { withTime: true }) }))}
+                    className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border border-amber-200 bg-white text-amber-800 hover:bg-amber-100"
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
               <input
                 type="datetime-local"
                 value={reminder.date}
@@ -304,6 +318,11 @@ export default function CustomerQuickActions({ customer }) {
                 className="w-full text-sm rounded-xl border border-gray-200 px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                 min={new Date().toISOString().slice(0, 16)}
               />
+              {reminder.date ? (
+                <p className="text-[11px] font-semibold text-amber-800 mt-1.5">
+                  {pipelinePurpose({ followup_type: reminder.type })} · duration {followupDueLabel(reminder.date)}
+                </p>
+              ) : null}
             </div>
 
             <div>

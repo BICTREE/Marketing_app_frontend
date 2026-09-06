@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button';
 import { 
   Loader2, Bell, Check, CheckCircle2, FileText, 
   AlertTriangle, Megaphone, Gift, PartyPopper, Plus,
-  Users as UsersIcon, User, Image as ImageIcon, X
+  Users as UsersIcon, User, Image as ImageIcon, X, PhoneCall, ExternalLink
 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import useAuth from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
 import {
   Dialog,
   DialogContent,
@@ -38,12 +39,16 @@ const getNotificationIcon = (type) => {
     case 'birthday': return <Gift className="text-pink-500" size={18} />;
     case 'anniversary': return <PartyPopper className="text-amber-500" size={18} />;
     case 'reminder': return <Bell className="text-[#0F6E56]" size={18} />;
+    case 'followup': return <PhoneCall className="text-[#0F6E56]" size={18} />;
+    case 'lead': return <UsersIcon className="text-[#C9972A]" size={18} />;
+    case 'hot_lead': return <AlertTriangle className="text-orange-500" size={18} />;
     default: return <Bell className="text-muted-foreground" size={18} />;
   }
 };
 
 const NotificationsPage = () => {
   const { isOwner, user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newNotif, setNewNotif] = useState({
@@ -178,6 +183,29 @@ const NotificationsPage = () => {
   const unreadCount = Array.isArray(notificationsData) 
     ? notificationsData.filter(n => !n.is_read).length 
     : 0;
+
+  const isStaffRole = ['staff', 'telecaller', 'field_staff', 'custom'].includes(currentUser?.role);
+  const leadPath = (id) => isStaffRole ? `/staff/leads/${id}` : `/leads/${id}`;
+  const isReviewNotif = (notif) => {
+    const action = notif?.data?.action || notif?.data?.type;
+    return [
+      'field_visit_outcome', 'field_visit_report', 'visit_returned',
+      'followup_returned', 'customer_profile_review',
+    ].includes(action) || !!notif?.data?.change_id;
+  };
+  const openNotificationTarget = (notif) => {
+    if (isReviewNotif(notif) || notif.data?.visit_id) {
+      setSelectedReviewNotif(notif);
+      return;
+    }
+    if (notif.data?.lead_id) {
+      navigate(leadPath(notif.data.lead_id));
+      return;
+    }
+    if (notif.data?.followup_id) {
+      navigate(isStaffRole ? '/staff/followups' : '/followups');
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
@@ -339,13 +367,7 @@ const NotificationsPage = () => {
                   key={notif.id} 
                   onClick={() => {
                     if (!notif.is_read) markReadMutation.mutate(notif.id);
-                    if (
-                      ['field_visit_outcome', 'field_visit_report', 'visit_returned', 'followup_returned', 'customer_profile_review'].includes(notif.data?.type) ||
-                      ['visit_returned', 'followup_returned', 'customer_profile_review'].includes(notif.data?.action) ||
-                      notif.data?.visit_id || notif.data?.lead_id || notif.data?.change_id
-                    ) {
-                      setSelectedReviewNotif(notif);
-                    }
+                    openNotificationTarget(notif);
                   }}
                   className={`p-4 flex gap-4 transition-colors cursor-pointer ${notif.is_read ? 'opacity-70 bg-background' : 'bg-primary/5 hover:bg-primary/10'}`}
                 >
@@ -387,7 +409,26 @@ const NotificationsPage = () => {
                       )}
                     </div>
                     <div className="space-y-3">
-                      <p className="text-sm text-muted-foreground leading-relaxed">{notif.body}</p>
+                      <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{notif.body}</p>
+                      {notif.data?.due_in ? (
+                        <p className="text-[11px] font-semibold text-[#0F6E56]">
+                          Duration: {notif.data.due_in}
+                          {notif.data.scheduled_time ? ` · ${notif.data.followup_type_display || 'Follow-up'} at ${notif.data.scheduled_time}` : ''}
+                        </p>
+                      ) : null}
+                      {notif.data?.lead_id ? (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-[#C9972A] hover:underline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!notif.is_read) markReadMutation.mutate(notif.id);
+                            navigate(leadPath(notif.data.lead_id));
+                          }}
+                        >
+                          <ExternalLink size={12} /> Open client details
+                        </button>
+                      ) : null}
                       {notif.image && (
                         <div className="max-w-md rounded-lg border overflow-hidden shadow-sm">
                            <img 

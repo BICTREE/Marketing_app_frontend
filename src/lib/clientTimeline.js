@@ -52,3 +52,37 @@ export function timelineSummary(event) {
     return 'Activity recorded.';
   }
 }
+
+export function pipelinePurpose(item = {}) {
+  if (item.kind === 'visit' || item.followup_type === 'visit') return 'Field visit';
+  if (item.followup_type === 'whatsapp') return 'WhatsApp follow-up';
+  if (item.followup_type === 'email') return 'Email';
+  if (item.followup_type === 'sms') return 'SMS';
+  return 'Phone call';
+}
+
+export function followupDueLabel(scheduledDate) {
+  if (!scheduledDate) return '';
+  const ms = new Date(scheduledDate).getTime() - Date.now();
+  if (Number.isNaN(ms)) return '';
+  const mins = Math.round(ms / 60000);
+  if (mins <= -1440) {
+    const days = Math.floor(Math.abs(mins) / 1440);
+    return `overdue by ${days} day${days === 1 ? '' : 's'}`;
+  }
+  if (mins <= -60) {
+    const hours = Math.floor(Math.abs(mins) / 60);
+    return `overdue by ${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  if (mins < 0) return `overdue by ${Math.abs(mins)} min`;
+  if (mins === 0) return 'due now';
+  if (mins < 60) return `in ${mins} min`;
+  if (mins < 1440) {
+    const hours = Math.floor(mins / 60);
+    const rem = mins % 60;
+    if (rem && hours < 6) return `in ${hours} hr ${rem} min`;
+    return `in ${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  const days = Math.round(mins / 1440);
+  return `in ${days} day${days === 1 ? '' : 's'}`;
+}

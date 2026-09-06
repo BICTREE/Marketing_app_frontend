@@ -2,7 +2,7 @@ import React from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import useAuth from '../hooks/useAuth';
 import { 
-  LayoutDashboard, Users, MapPin, CalendarCheck, LogOut, Gem, User, PhoneCall
+  LayoutDashboard, Users, MapPin, CalendarCheck, LogOut, Gem, User, PhoneCall, Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { BinduWordmark } from '@/components/BinduLogo';
@@ -28,8 +28,10 @@ const StaffLayout = () => {
     { label: 'Sales', icon: Gem, path: '/staff/sales', permission: 'sales:view' },
     { label: 'Visits', icon: MapPin, path: '/staff/field-visits', permission: 'field_visits:view' },
     { label: 'Attendance', icon: CalendarCheck, path: '/staff/attendance', permission: 'attendance:view' },
+    { label: 'Alerts', icon: Bell, path: '/staff/notifications' },
     { label: 'Profile', icon: User, path: '/staff/profile', permission: 'profile:view' },
   ].filter(item => {
+    if (item.path === '/staff/notifications') return true;
     if (item.path === '/staff/attendance') {
       return hasPermission(item.permission) || ['staff', 'telecaller', 'field_staff', 'custom'].includes(role);
     }

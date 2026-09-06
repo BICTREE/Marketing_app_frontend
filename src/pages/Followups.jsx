@@ -12,6 +12,7 @@ import { format, isPast, isToday } from 'date-fns';
 import toast from 'react-hot-toast';
 import useAuth from '@/hooks/useAuth';
 import { FOLLOWUP_DATE_CHIPS, addDaysLocal } from '@/lib/jewelleryOccasions';
+import { pipelinePurpose, followupDueLabel } from '@/lib/clientTimeline';
 import {
   Dialog,
   DialogContent,
@@ -351,6 +352,9 @@ const Followups = () => {
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset ${priority.badge}`}>
                       {priority.label}
                     </span>
+                    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-800 ring-1 ring-inset ring-emerald-200">
+                      {followup.followup_type_display || pipelinePurpose(followup)}
+                    </span>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold capitalize ${status.className}`}>
                       <StatusIcon size={11} />
                       {followup.status}
@@ -400,6 +404,9 @@ const Followups = () => {
                       </span>
                     )}
                   </div>
+                  <p className="text-[11px] font-semibold text-[#0F6E56]">
+                    Duration: {followup.due_in || followupDueLabel(followup.scheduled_date) || '—'}
+                  </p>
                   <p className="text-[13px] leading-relaxed text-slate-600 line-clamp-2">
                     {followup.note || 'No notes yet for this follow-up.'}
                   </p>
