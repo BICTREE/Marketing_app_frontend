@@ -301,7 +301,9 @@ const ProfileAttributesTab = ({ customer, customerId }) => {
 // ── Main CustomerProfileDetail Component ──────────────────────────────────────
 
 const CustomerProfileDetail = ({ customerId }) => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
+  const canEditLead = hasPermission('leads:edit');
+  const canManagerDecide = ['owner', 'admin', 'manager', 'sub_manager'].includes(user?.role) || user?.is_superuser;
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('overview');
   const [timelineFilter, setTimelineFilter] = useState('all');
@@ -310,6 +312,10 @@ const CustomerProfileDetail = ({ customerId }) => {
 
   // Quick Manager Feedback / Decision state
   const [managerNotes, setManagerNotes] = useState('');
+  const [stageNote, setStageNote] = useState('');
+  const [convertWeight, setConvertWeight] = useState('');
+  const [convertAmount, setConvertAmount] = useState('');
+  const [convertSaleType, setConvertSaleType] = useState('normal');
   const [selectedLeadForReassign, setSelectedLeadForReassign] = useState(null);
   const [newStaffId, setNewStaffId] = useState('');
   const [callLogForm, setCallLogForm] = useState({
@@ -350,6 +356,19 @@ const CustomerProfileDetail = ({ customerId }) => {
     enabled: !!customerId && !!leadIdsKey,
   });
 
+  const stageMutation = useMutation({
+    mutationFn: ({ id, stage, note }) => api.patch(`/leads/leads/${id}/stage/`, { stage, note }),
+    onSuccess: () => {
+      toast.success('Lead stage updated.');
+      setStageNote('');
+      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Could not update stage.');
+    },
+  });
+
   // Manager Decision Mutation
   const managerDecisionMutation = useMutation({
     mutationFn: ({ decision, extraPayload }) => {
@@ -364,7 +383,11 @@ const CustomerProfileDetail = ({ customerId }) => {
     onSuccess: (res) => {
       toast.success(res.data?.detail || 'Manager note saved successfully!');
       setManagerNotes('');
+      setConvertWeight('');
+      setConvertAmount('');
       queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to save decision.');
@@ -502,10 +525,47 @@ const CustomerProfileDetail = ({ customerId }) => {
 
               {activeLead?.stage && (
                 <Badge className="bg-emerald-100 text-emerald-800 text-[10px] font-extrabold uppercase px-2.5 py-1 border-0">
-                  {activeLead.stage}
+                  {STAGE_META[activeLead.stage]?.label || activeLead.stage}
                 </Badge>
               )}
             </div>
+
+            {canEditLead && activeLead && (
+              <div className="w-full mb-4 space-y-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Move lead stage</p>
+                <div className="flex flex-wrap gap-1.5 justify-center">
+                  {Object.entries(STAGE_META).map(([id, meta]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      disabled={activeLead.stage === id || stageMutation.isPending}
+                      onClick={() => {
+                        if (id === activeLead.stage) return;
+                        if (!stageNote.trim()) {
+                          toast.error('Write a short note, then tap the new stage.');
+                          return;
+                        }
+                        stageMutation.mutate({ id: activeLead.id, stage: id, note: stageNote.trim() });
+                      }}
+                      className="text-[10px] font-bold uppercase px-2.5 py-1 rounded-full border disabled:opacity-50"
+                      style={{
+                        color: activeLead.stage === id ? meta.color : '#6B7280',
+                        background: activeLead.stage === id ? meta.bg : '#F9FAFB',
+                        borderColor: activeLead.stage === id ? meta.color : '#E5E7EB',
+                      }}
+                    >
+                      {meta.label}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  className="w-full p-2 text-xs rounded-xl border border-gray-200 min-h-[56px]"
+                  placeholder="Note for stage change (required)"
+                  value={stageNote}
+                  onChange={(e) => setStageNote(e.target.value)}
+                />
+              </div>
+            )}
             
             <p className="text-xs font-semibold text-gray-400 mb-5">
               Customer since {customer.created_at ? format(new Date(customer.created_at), 'MMMM yyyy') : 'Recently'}
@@ -584,7 +644,7 @@ const CustomerProfileDetail = ({ customerId }) => {
         </div>
 
         {/* Manager Decision & Feedback Action Card (FEATURED ON TOP FOR ADMIN/MANAGER) */}
-        {activeLead && (
+        {canManagerDecide && activeLead && (
           <div className="bg-amber-50/70 border border-amber-200/80 rounded-3xl p-6 mb-6 shadow-2xs space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-amber-950 flex items-center gap-2">
@@ -614,14 +674,59 @@ const CustomerProfileDetail = ({ customerId }) => {
               </Button>
 
               {activeLead.stage !== 'converted' && (
-                <Button 
-                  size="sm" 
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
-                  onClick={() => managerDecisionMutation.mutate({ decision: 'convert' })}
-                  disabled={managerDecisionMutation.isPending}
-                >
-                  ✓ Mark Converted
-                </Button>
+                <div className="w-full space-y-2 pt-1">
+                  <p className="text-[10px] font-bold text-amber-900/70 uppercase tracking-widest">Convert with sale</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      className="h-9 px-3 text-xs rounded-xl border border-amber-200 bg-white"
+                      placeholder={activeLead.approx_grams ? `Grams (lead: ${activeLead.approx_grams})` : 'Gold grams *'}
+                      value={convertWeight}
+                      onChange={(e) => setConvertWeight(e.target.value)}
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="h-9 px-3 text-xs rounded-xl border border-amber-200 bg-white"
+                      placeholder="Amount ₹ (optional)"
+                      value={convertAmount}
+                      onChange={(e) => setConvertAmount(e.target.value)}
+                    />
+                    <select
+                      className="h-9 px-3 text-xs rounded-xl border border-amber-200 bg-white font-semibold"
+                      value={convertSaleType}
+                      onChange={(e) => setConvertSaleType(e.target.value)}
+                    >
+                      <option value="normal">SALE</option>
+                      <option value="advance">ADVANCE</option>
+                    </select>
+                  </div>
+                  <Button 
+                    size="sm" 
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs"
+                    onClick={() => {
+                      const grams = convertWeight.trim() || activeLead.approx_grams;
+                      if (!grams && !convertAmount.trim()) {
+                        toast.error('Enter gold weight (grams) or amount to convert.');
+                        return;
+                      }
+                      managerDecisionMutation.mutate({
+                        decision: 'convert',
+                        extraPayload: {
+                          weight_grams: grams || undefined,
+                          sale_amount: convertAmount.trim() || undefined,
+                          sale_type: convertSaleType,
+                        },
+                      });
+                    }}
+                    disabled={managerDecisionMutation.isPending}
+                  >
+                    ✓ Mark Converted
+                  </Button>
+                </div>
               )}
 
               {activeLead.stage !== 'lost' && (
@@ -629,7 +734,13 @@ const CustomerProfileDetail = ({ customerId }) => {
                   size="sm" 
                   variant="outline"
                   className="border-rose-300 text-rose-700 hover:bg-rose-50 font-semibold text-xs"
-                  onClick={() => managerDecisionMutation.mutate({ decision: 'mark_lost', extraPayload: { lost_reason: managerNotes } })}
+                  onClick={() => {
+                    if (!managerNotes.trim()) {
+                      toast.error('Write a reason before marking this lead lost.');
+                      return;
+                    }
+                    managerDecisionMutation.mutate({ decision: 'mark_lost', extraPayload: { lost_reason: managerNotes } });
+                  }}
                   disabled={managerDecisionMutation.isPending}
                 >
                   ✕ Mark Lost
@@ -909,7 +1020,9 @@ const CustomerProfileDetail = ({ customerId }) => {
                     <LeadDetail 
                       key={lead.id} 
                       lead={lead} 
-                      onReassign={(l) => { setSelectedLeadForReassign(l); setNewStaffId(''); }} 
+                      onReassign={hasPermission('leads:assign')
+                        ? (l) => { setSelectedLeadForReassign(l); setNewStaffId(''); }
+                        : undefined} 
                     />
                   ))
                 ) : (

@@ -18,7 +18,7 @@ export default function CustomerQuickActions({ customer }) {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const phone = customer?.phone?.replace(/[^0-9]/g, '') || '';
-  const leadId = customer?.leads?.[0]?.id;
+  const leadId = customer?.leads?.[customer.leads.length - 1]?.id;
 
   const [panel, setPanel] = useState(null); // 'reminder' | 'note' | 'whatsapp' | 'visit'
   const [reminder, setReminder] = useState({ date: '', note: '', type: 'call', priority: 'medium', assigned_to: '' });
@@ -76,15 +76,26 @@ export default function CustomerQuickActions({ customer }) {
   });
 
   const handleReminder = () => {
-    if (!reminder.date) return;
+    if (!leadId) {
+      toast.error('This customer has no lead to attach a follow-up to.');
+      return;
+    }
+    if (!reminder.date) {
+      toast.error('Pick a follow-up date.');
+      return;
+    }
+    if (!String(reminder.note || '').trim()) {
+      toast.error('Write a follow-up note before saving.');
+      return;
+    }
     const payload = {
       scheduled_date: reminder.date,
-      note: reminder.note,
+      note: reminder.note.trim(),
       followup_type: reminder.type,
-      priority: reminder.priority || 'medium'
+      priority: reminder.priority || 'medium',
+      lead: leadId,
     };
     if (reminder.assigned_to) payload.assigned_to = reminder.assigned_to;
-    if (leadId) payload.lead = leadId;
     reminderMutation.mutate(payload);
   };
 
@@ -309,7 +320,7 @@ export default function CustomerQuickActions({ customer }) {
           </div>
 
           <div>
-            <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Follow-up Note / Objective</label>
+            <label className="text-xs text-gray-500 font-semibold uppercase block mb-1">Follow-up Note / Objective *</label>
             <input
               type="text"
               value={reminder.note}

@@ -306,6 +306,8 @@ const Leads = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['leads'] });
       queryClient.invalidateQueries({ queryKey: ['leads-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['followups'] });
+      queryClient.invalidateQueries({ queryKey: ['today-followups'] });
       setIsAddModalOpen(false);
       reset();
       setPhoneLookup(null);
@@ -323,8 +325,10 @@ const Leads = () => {
     }
     setIsPhoneSearching(true);
     try {
-      // Normalize phone number: remove spaces, +, and country code
-      const normalizedPhone = phone.replace(/\s+/g, '').replace(/\+/g, '').replace(/^91/, '');
+      const digits = String(phone || '').replace(/\D/g, '');
+      const normalizedPhone = digits.length >= 12 && digits.startsWith('91')
+        ? digits.slice(-10)
+        : (digits.length === 11 && digits.startsWith('0') ? digits.slice(-10) : (digits.slice(-10) || digits));
       const response = await api.get(`/leads/customers/by-phone/${normalizedPhone}/`);
       if (response.data && response.data.exists === false) {
         setPhoneLookup(null);
@@ -364,13 +368,15 @@ const Leads = () => {
   }, [watchedPhone]);
 
   const onSubmit = (data) => {
-    console.log('Form data before cleanup:', data);
-    console.log('User data:', user);
-    console.log('isAdmin:', isAdmin);
-    console.log('watchedBranch:', watchedBranch);
-    console.log('branchesData:', branchesData);
-    
-    // Clean up empty fields
+    const digits = String(data.phone || '').replace(/\D/g, '');
+    data.phone = digits.length >= 12 && digits.startsWith('91')
+      ? digits.slice(-10)
+      : (digits.length === 11 && digits.startsWith('0') ? digits.slice(-10) : (digits.slice(-10) || digits));
+
+    if (data.followup_choice === 'custom' && !data.followup_date) {
+      toast.error('Pick a follow-up date, or choose another follow-up option.');
+      return;
+    }
     if (data.email === '') delete data.email;
     if (data.date_of_birth === '') delete data.date_of_birth;
     if (data.notes === '') delete data.notes;
@@ -1189,6 +1195,10 @@ const Leads = () => {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (!String(followUpForm.note || '').trim()) {
+                toast.error('Write a follow-up note before saving.');
+                return;
+              }
               createFollowUpMutation.mutate(followUpForm);
             }}
             className="space-y-4 pt-2"
@@ -1286,8 +1296,9 @@ const Leads = () => {
 
             {/* Note */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Follow-up Instructions / Notes</Label>
+              <Label className="text-xs font-bold">Follow-up Instructions / Notes *</Label>
               <textarea
+                required
                 value={followUpForm.note}
                 onChange={(e) => setFollowUpForm({ ...followUpForm, note: e.target.value })}
                 placeholder="Details of what to discuss or follow up on..."
