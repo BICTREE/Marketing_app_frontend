@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
+import { latestLead, indianWhatsAppNumber } from '../lib/utils';
 
 const WHATSAPP_TEMPLATES = [
   { label: 'Follow-up', text: (name) => `Hi ${name}! 😊 Following up on your visit to Bindu Jewellery. Would you like to come in and take a look at our latest collection?` },
@@ -17,8 +18,9 @@ const WHATSAPP_TEMPLATES = [
 export default function CustomerQuickActions({ customer }) {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
-  const phone = customer?.phone?.replace(/[^0-9]/g, '') || '';
-  const leadId = customer?.leads?.[customer.leads.length - 1]?.id;
+  const rawPhone = customer?.phone || '';
+  const phone = indianWhatsAppNumber(rawPhone);
+  const leadId = latestLead(customer?.leads)?.id;
 
   const [panel, setPanel] = useState(null); // 'reminder' | 'note' | 'whatsapp' | 'visit'
   const [reminder, setReminder] = useState({ date: '', note: '', type: 'call', priority: 'medium', assigned_to: '' });

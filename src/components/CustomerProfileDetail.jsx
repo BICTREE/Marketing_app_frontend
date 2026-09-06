@@ -15,7 +15,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Badge } from './ui/badge';
 import { format, formatDistanceToNow } from 'date-fns';
-import { formatGrams } from '../lib/utils';
+import { formatGrams, latestLead } from '../lib/utils';
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
 
@@ -340,7 +340,7 @@ const CustomerProfileDetail = ({ customerId }) => {
     enabled: hasPermission('staff:view') || hasPermission('leads:assign'),
   });
 
-  const activeLead = customer?.leads?.[customer?.leads?.length - 1] || null;
+  const activeLead = latestLead(customer?.leads);
   const leadIdsKey = (customer?.leads || []).map((l) => l.id).join(',');
 
   const { data: profileCallLogs = [] } = useQuery({
@@ -372,7 +372,7 @@ const CustomerProfileDetail = ({ customerId }) => {
   // Manager Decision Mutation
   const managerDecisionMutation = useMutation({
     mutationFn: ({ decision, extraPayload }) => {
-      const targetLeadId = activeLead?.id || customer?.leads?.[0]?.id;
+      const targetLeadId = activeLead?.id || latestLead(customer?.leads)?.id;
       if (!targetLeadId) throw new Error('No linked lead available to update.');
       return api.post(`/leads/leads/${targetLeadId}/manager-decision/`, {
         decision,
@@ -852,9 +852,13 @@ const CustomerProfileDetail = ({ customerId }) => {
                   className="space-y-3 rounded-2xl border border-gray-100 bg-gray-50/70 p-4"
                   onSubmit={(e) => {
                     e.preventDefault();
-                    const leadId = callLogForm.leadId || activeLead?.id || customer.leads?.[0]?.id;
+                    const leadId = callLogForm.leadId || activeLead?.id || latestLead(customer.leads)?.id;
                     if (!leadId) {
                       toast.error('This customer has no lead to attach a call to.');
+                      return;
+                    }
+                    if (!String(callLogForm.notes || '').trim()) {
+                      toast.error('Write a call note before saving.');
                       return;
                     }
                     logProfileCallMutation.mutate({
@@ -917,7 +921,7 @@ const CustomerProfileDetail = ({ customerId }) => {
                     />
                   </div>
                   <div className="space-y-1">
-                    <Label className="text-xs">Notes</Label>
+                      <Label className="text-xs">Notes *</Label>
                     <textarea
                       className="w-full min-h-[90px] rounded-xl border border-gray-200 bg-white p-3 text-xs"
                       value={callLogForm.notes}
