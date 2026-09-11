@@ -16,6 +16,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { snapTrailToRoads } from '@/lib/roadSnap';
+import { googleMapsNavigateUrl, googleMapsViewUrl, hasCoords } from '@/lib/maps';
+import { useSearchParams } from 'react-router-dom';
 
 // Fix leaflet default icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -100,13 +102,12 @@ const getBearing = (lat1, lng1, lat2, lng2) => {
   return (brng + 360) % 360;
 };
 
-const MapRecenter = ({ center, zoom = 14 }) => {
+const MapRecenter = ({ target, zoom = 16 }) => {
   const map = useMap();
   useEffect(() => {
-    if (center && center[0] && center[1]) {
-      map.setView(center, zoom, { animate: true });
-    }
-  }, [center, zoom, map]);
+    if (!target || !Number.isFinite(Number(target.lat)) || !Number.isFinite(Number(target.lng))) return;
+    map.setView([Number(target.lat), Number(target.lng)], target.zoom || zoom, { animate: true });
+  }, [target?.lat, target?.lng, target?.zoom, target?.leadId, target?.staffId, zoom, map]);
   return null;
 };
 
@@ -328,7 +329,7 @@ const VisitRoadmapSubMap = ({ visit }) => {
 
 const FieldVisitsPage = () => {
   const { user, hasPermission } = useAuth();
-  const isManagerOrAbove = user?.role === 'owner' || user?.role === 'admin' || user?.role === 'manager' || user?.is_superuser;
+  const isManagerOrAbove = user?.role === 'owner' || user?.role === 'admin' || user?.role === 'manager' || user?.role === 'sub_manager' || user?.is_superuser;
   const canManageVisits = isManagerOrAbove || hasPermission('field_visits:manage');
   const canViewLiveTracking = isManagerOrAbove || canManageVisits;
   const queryClient = useQueryClient();
@@ -348,7 +349,11 @@ const FieldVisitsPage = () => {
 
   // Layer toggle states & Lead Search
   const [showBranchPins, setShowBranchPins] = useState(true);
-  const [showClientPins, setShowClientPins] = useState(true);
+  const [showClientPins, setShowClientPins] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showComplete, setShowComplete] = useState(false);
+  const [completeVisit, setCompleteVisit] = useState(null);
+  const [completeForm, setCompleteForm] = useState({ outcome: 'interested', notes: '' });
   const [showStaffPins, setShowStaffPins] = useState(true);
   const [showOnlyLiveStaff, setShowOnlyLiveStaff] = useState(false);
   const [leadSearchQuery, setLeadSearchQuery] = useState('');
@@ -387,6 +392,7 @@ const FieldVisitsPage = () => {
   });
 
   const filteredVisits = visitsData || [];
+  const inProgressVisit = (filteredVisits || []).find((v) => v.status === 'active' && v.start_lat);
 
   // Chart data
   const statusDistributionData = React.useMemo(() => {
@@ -596,6 +602,33 @@ const FieldVisitsPage = () => {
     }
   });
 
+  const reachedClientMutation = useMutation({
+    mutationFn: ({ visitId, data }) => api.post(`/field-visits/field-visits/${visitId}/reached-client/`, data),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['fieldvisits'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+      toast.success(res.data?.detail || 'Reached client.');
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail || 'Could not save client location');
+    }
+  });
+
+  const endVisitMutation = useMutation({
+    mutationFn: ({ visitId, data }) => api.post(`/field-visits/field-visits/${visitId}/end/`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fieldvisits'] });
+      queryClient.invalidateQueries({ queryKey: ['live-tracking'] });
+      toast.success('Visit finished.');
+      setShowComplete(false);
+      setCompleteVisit(null);
+      setCompleteForm({ outcome: 'interested', notes: '' });
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail || 'Could not finish visit');
+    }
+  });
+
   // Fetch Leads for assignment & map pin search
   const { data: leadsData } = useQuery({
     queryKey: ['leads'],
@@ -606,34 +639,57 @@ const FieldVisitsPage = () => {
   const filteredSearchLeads = React.useMemo(() => {
     if (!leadsData || !Array.isArray(leadsData) || !leadSearchQuery.trim()) return [];
     const q = leadSearchQuery.toLowerCase().trim();
-    return leadsData.filter(l => 
+    return leadsData.filter(l =>
       (l.name && l.name.toLowerCase().includes(q)) ||
       (l.phone && l.phone.includes(q)) ||
-      (l.notes && l.notes.toLowerCase().includes(q))
+      (l.notes && l.notes.toLowerCase().includes(q)) ||
+      (l.village && l.village.toLowerCase().includes(q)) ||
+      (l.house_name && l.house_name.toLowerCase().includes(q)) ||
+      (l.street && l.street.toLowerCase().includes(q)) ||
+      (l.district && l.district.toLowerCase().includes(q))
     ).slice(0, 8);
   }, [leadsData, leadSearchQuery]);
 
+  const filteredSearchStaff = React.useMemo(() => {
+    if (!leadSearchQuery.trim()) return [];
+    const q = leadSearchQuery.toLowerCase().trim();
+    return (activeLiveTracking || []).filter((s) =>
+      (s.staff_name || '').toLowerCase().includes(q) ||
+      (s.lead_name || '').toLowerCase().includes(q) ||
+      String(s.staff_phone || '').includes(q)
+    ).slice(0, 5);
+  }, [activeLiveTracking, leadSearchQuery]);
+
   const leadsWithGPS = React.useMemo(() => {
     if (!leadsData || !Array.isArray(leadsData)) return [];
-    return leadsData.filter(l => l.lat && l.lng);
+    return leadsData.filter((l) => hasCoords(l.lat, l.lng));
   }, [leadsData]);
 
   const handleSelectSearchedLead = (lead) => {
-    if (lead.lat && lead.lng) {
+    if (hasCoords(lead.lat, lead.lng)) {
       const latNum = parseFloat(lead.lat);
       const lngNum = parseFloat(lead.lng);
       setFocusedLocation({ lat: latNum, lng: lngNum, zoom: 16, leadId: lead.id, leadName: lead.name });
-      toast.success(`Centered map on ${lead.name}'s location (${lead.phone})`);
+      toast.success(`Map moved to ${lead.name}`);
     } else {
       setSelectedLeadForLocation(lead);
-      if (userLocation) {
-        setManualLat(String(userLocation.lat));
-        setManualLng(String(userLocation.lng));
-      }
+      setManualLat('');
+      setManualLng('');
       setShowSaveLocationModal(true);
-      toast('No saved GPS location for this client. Please set coordinates below.', { icon: '📍' });
+      toast('No house pin saved yet. Enter coordinates or save them when staff reach the client.');
     }
   };
+
+  React.useEffect(() => {
+    const leadId = searchParams.get('lead');
+    if (!leadId || !leadsData) return;
+    const lead = leadsData.find((l) => String(l.id) === String(leadId));
+    if (lead) {
+      handleSelectSearchedLead(lead);
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, leadsData]);
 
   // Fetch Staff for assignment
   const { data: staffData } = useQuery({
@@ -763,15 +819,22 @@ const FieldVisitsPage = () => {
     }
   });
 
-  const handleSaveCustomerLocation = (leadId) => {
-    if (!userLocation) {
-      toast.error('Unable to get your current location');
+  const handleSaveCustomerLocation = (visit) => {
+    const coords = userLocation;
+    if (!coords) {
+      toast.error('Turn on GPS first, then save the house pin when you are at the client.');
       return;
     }
-    updateLeadLocationMutation.mutate({ 
-      id: leadId, 
-      lat: userLocation.lat, 
-      lng: userLocation.lng 
+    const hasSaved = hasCoords(visit.lead_lat, visit.lead_lng);
+    const ok = window.confirm(
+      hasSaved
+        ? 'This client already has a house pin. Replace it with your current GPS? Only say yes if you are standing at their house.'
+        : 'Save your current GPS as this client’s house location? Only say yes if you are at their house.'
+    );
+    if (!ok) return;
+    reachedClientMutation.mutate({
+      visitId: visit.id,
+      data: { lat: coords.lat, lng: coords.lng, overwrite: hasSaved, save_as_client_location: true },
     });
   };
 
@@ -811,6 +874,22 @@ const FieldVisitsPage = () => {
     setShowDetails(true);
   };
 
+  const handleFinishVisit = (visit) => {
+    setCompleteVisit(visit);
+    setCompleteForm({ outcome: 'interested', notes: '' });
+    setShowComplete(true);
+  };
+
+  const submitCompleteVisit = () => {
+    if (!completeVisit) return;
+    const data = { ...completeForm };
+    if (userLocation) {
+      data.lat = userLocation.lat;
+      data.lng = userLocation.lng;
+    }
+    endVisitMutation.mutate({ visitId: completeVisit.id, data });
+  };
+
   const handleCloseDetails = () => {
     setShowDetails(false);
     setSelectedVisit(null);
@@ -819,9 +898,16 @@ const FieldVisitsPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
-          Field Visits
-        </h1>
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground" style={{ fontFamily: "'Playfair Display', serif" }}>
+            Field Visits
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            {canManageVisits
+              ? 'Search a client or staff to jump on the map. Client house pins stay off until you search or turn them on — live staff GPS is separate.'
+              : 'Start an assigned visit, log your location on the way, save the house pin when you arrive, then finish.'}
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2">
           {canManageVisits && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -1060,7 +1146,7 @@ const FieldVisitsPage = () => {
                 <div className="relative">
                   <Input
                     type="text"
-                    placeholder="🔍 Search old lead by phone number or name..."
+                    placeholder="Search staff, lead name, phone, or place..."
                     value={leadSearchQuery}
                     onChange={(e) => setLeadSearchQuery(e.target.value)}
                     className="h-9 text-xs bg-background border-border pr-8 shadow-xs"
@@ -1077,8 +1163,32 @@ const FieldVisitsPage = () => {
                 </div>
 
                 {/* Lead Search Results Dropdown */}
-                {filteredSearchLeads.length > 0 && (
+                {(filteredSearchStaff.length > 0 || filteredSearchLeads.length > 0) && (
                   <div className="absolute left-0 right-0 top-10 bg-background border border-border rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-border">
+                    {filteredSearchStaff.map((loc) => (
+                      <div
+                        key={`staff-hit-${loc.staff_id}`}
+                        onClick={() => {
+                          setFocusedLocation({
+                            lat: Number(loc.latitude),
+                            lng: Number(loc.longitude),
+                            zoom: 16,
+                            staffId: loc.staff_id,
+                          });
+                          setSelectedTrackedStaff(String(loc.staff_id));
+                          setLeadSearchQuery('');
+                        }}
+                        className="p-2.5 hover:bg-muted/50 cursor-pointer flex items-center justify-between text-xs"
+                      >
+                        <div>
+                          <p className="font-bold text-foreground">🟢 {loc.staff_name}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {loc.lead_name ? `Visiting ${loc.lead_name}` : 'Field staff'}
+                          </p>
+                        </div>
+                        <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[9px]">Staff</Badge>
+                      </div>
+                    ))}
                     {filteredSearchLeads.map((lead) => (
                       <div
                         key={lead.id}
@@ -1090,16 +1200,16 @@ const FieldVisitsPage = () => {
                       >
                         <div>
                           <p className="font-bold text-foreground">{lead.name}</p>
-                          <p className="text-[11px] text-muted-foreground">📞 {lead.phone} {lead.notes ? `• ${lead.notes}` : ''}</p>
+                          <p className="text-[11px] text-muted-foreground">📞 {lead.phone} {lead.village ? `• ${lead.village}` : ''}</p>
                         </div>
                         <div>
-                          {lead.lat && lead.lng ? (
+                          {hasCoords(lead.lat, lead.lng) ? (
                             <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[9px]">
-                              📍 GPS Saved
+                              📍 House pin
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[9px]">
-                              ⚠️ Set GPS
+                              No GPS yet
                             </Badge>
                           )}
                         </div>
@@ -1135,7 +1245,7 @@ const FieldVisitsPage = () => {
                       : 'bg-background text-muted-foreground border-border opacity-60'
                   }`}
                 >
-                  🎯 Client Locations ({leadsWithGPS.length}) {showClientPins ? '✓' : 'OFF'}
+                  🎯 All client pins ({leadsWithGPS.length}) {showClientPins ? '✓' : 'OFF'}
                 </button>
 
                 <button
@@ -1306,20 +1416,7 @@ const FieldVisitsPage = () => {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
 
-                <MapRecenter
-                  center={
-                    focusedLocation
-                      ? [focusedLocation.lat, focusedLocation.lng]
-                      : selectedTrackedStaff !== 'all' && staffLocationTrail?.length > 0
-                      ? [parseFloat(staffLocationTrail[staffLocationTrail.length - 1].latitude), parseFloat(staffLocationTrail[staffLocationTrail.length - 1].longitude)]
-                      : liveTrackingData?.[0]
-                      ? [liveTrackingData[0].latitude, liveTrackingData[0].longitude]
-                      : branchesData?.[0]?.lat && branchesData?.[0]?.lng
-                      ? [parseFloat(branchesData[0].lat), parseFloat(branchesData[0].lng)]
-                      : [12.507468, 74.989774]
-                  }
-                  zoom={focusedLocation ? focusedLocation.zoom : 14}
-                />
+                <MapRecenter target={focusedLocation} />
 
                 {/* ── 0. SHOWROOM BRANCH HQ MARKERS (Controlled by Toggle) ── */}
                 {showBranchPins && branchesData?.filter(b => b.lat && b.lng).map(branch => (
@@ -1370,7 +1467,44 @@ const FieldVisitsPage = () => {
                 ))}
 
                 {/* ── 0.1 SAVED CUSTOMER LOCATION PINS (Controlled by Toggle) ── */}
-                {showClientPins && leadsWithGPS.map(lead => {
+                {/* Destination of the visit in progress — not the full client dump */}
+                {showStaffPins && activeLiveTracking?.filter((loc) => hasCoords(loc.lead_lat, loc.lead_lng)).map((loc) => (
+                  <Marker
+                    key={`dest-${loc.staff_id}-${loc.lead_name}`}
+                    position={[Number(loc.lead_lat), Number(loc.lead_lng)]}
+                    icon={L.divIcon({
+                      className: '',
+                      html: `
+                        <div style="display:flex;flex-direction:column;align-items:center;width:130px;">
+                          <div style="background:#1A5490;color:#fff;font-size:10px;font-weight:700;padding:3px 8px;border-radius:10px;white-space:nowrap;border:2px solid #fff;box-shadow:0 3px 8px rgba(0,0,0,0.3);">🎯 ${escapeHtml(loc.lead_name || 'Client')}</div>
+                          <div style="width:10px;height:10px;background:#1A5490;border-radius:50%;border:2px solid #fff;margin-top:2px;"></div>
+                        </div>
+                      `,
+                      iconSize: [130, 36],
+                      iconAnchor: [65, 36],
+                      popupAnchor: [0, -36],
+                    })}
+                  >
+                    <Popup maxWidth={240}>
+                      <div style={{ fontFamily: 'system-ui' }}>
+                        <strong>Going to {loc.lead_name}</strong>
+                        <p style={{ fontSize: 11, margin: '4px 0' }}>Staff: {loc.staff_name}</p>
+                        {loc.lead_address ? <p style={{ fontSize: 11, color: '#555' }}>{loc.lead_address}</p> : null}
+                        <a
+                          href={googleMapsNavigateUrl(loc.lead_lat, loc.lead_lng)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'inline-block', marginTop: 8, background: '#4285f4', color: '#fff', fontSize: 10, padding: '4px 8px', borderRadius: 4, textDecoration: 'none', fontWeight: 700 }}
+                        >
+                          🧭 Navigate to client
+                        </a>
+                      </div>
+                    </Popup>
+                  </Marker>
+                ))}
+
+                {/* Saved client house pins — off by default so they don't look like staff GPS */}
+                {(showClientPins || focusedLocation?.leadId) && leadsWithGPS.filter((lead) => showClientPins || focusedLocation?.leadId === lead.id).map(lead => {
                   const isHighlighted = focusedLocation?.leadId === lead.id;
                   return (
                     <Marker
@@ -1385,7 +1519,7 @@ const FieldVisitsPage = () => {
                               padding:3px 8px;border-radius:10px;white-space:nowrap;
                               border:${isHighlighted ? '2.5px solid #FEF08A' : '2px solid #fff'};
                               box-shadow:0 3px 8px rgba(0,0,0,0.3);
-                            ">🎯 ${lead.name}</div>
+                            ">🏠 ${escapeHtml(lead.name)}</div>
                             <div style="
                               width:10px;height:10px;background:${isHighlighted ? '#EF4444' : '#1A5490'};border-radius:50%;
                               border:2px solid #fff;box-shadow:0 2px 4px rgba(0,0,0,0.3);
@@ -1400,21 +1534,19 @@ const FieldVisitsPage = () => {
                     >
                       <Popup maxWidth={240}>
                         <div style={{ fontFamily: 'system-ui' }}>
-                          <div style={{ background: '#1A5490', color: '#fff', padding: '6px 10px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <strong style={{ fontSize: 12 }}>🎯 Client Location</strong>
-                            <span style={{ fontSize: 10, opacity: 0.9 }}>ID: #{lead.id}</span>
+                          <div style={{ background: '#1A5490', color: '#fff', padding: '6px 10px', margin: '-5px -20px 8px', borderRadius: '4px 4px 0 0' }}>
+                            <strong style={{ fontSize: 12 }}>🏠 Client house</strong>
                           </div>
                           <p style={{ fontSize: 12, fontWeight: 700, margin: '2px 0' }}>{lead.name}</p>
                           <p style={{ fontSize: 11, color: '#666', margin: '2px 0' }}>📞 {lead.phone}</p>
-                          {lead.notes && <p style={{ fontSize: 11, color: '#888', margin: '2px 0', fontStyle: 'italic' }}>📝 {lead.notes}</p>}
                           <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
                             <a
-                              href={`https://www.google.com/maps?q=${lead.lat},${lead.lng}`}
+                              href={googleMapsNavigateUrl(lead.lat, lead.lng)}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{ flex: 1, textAlign: 'center', background: '#4285f4', color: '#fff', fontSize: 10, padding: '4px 6px', borderRadius: 4, textDecoration: 'none', fontWeight: 700 }}
                             >
-                              🗺️ Google Maps
+                              🧭 Go there
                             </a>
                             <button
                               onClick={() => {
@@ -1740,19 +1872,30 @@ const FieldVisitsPage = () => {
                           )}
                           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                             <a
-                              href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
+                              href={googleMapsViewUrl(loc.latitude, loc.longitude)}
                               target="_blank"
                               rel="noopener noreferrer"
                               style={{ flex: 1, textAlign: 'center', background: '#4285f4', color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6, textDecoration: 'none', fontWeight: 700 }}
                             >
-                              🗺️ Google Maps
+                              🗺️ Staff GPS
                             </a>
-                            <button
-                              onClick={() => setSelectedTrackedStaff(String(loc.staff_id))}
-                              style={{ flex: 1, textAlign: 'center', background: color, color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6, border: 'none', fontWeight: 700, cursor: 'pointer' }}
-                            >
-                              🛣️ View Route
-                            </button>
+                            {hasCoords(loc.lead_lat, loc.lead_lng) ? (
+                              <a
+                                href={googleMapsNavigateUrl(loc.lead_lat, loc.lead_lng)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ flex: 1, textAlign: 'center', background: '#1A5490', color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6, textDecoration: 'none', fontWeight: 700 }}
+                              >
+                                🧭 Client house
+                              </a>
+                            ) : (
+                              <button
+                                onClick={() => setSelectedTrackedStaff(String(loc.staff_id))}
+                                style={{ flex: 1, textAlign: 'center', background: color, color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6, border: 'none', fontWeight: 700, cursor: 'pointer' }}
+                              >
+                                🛣️ View Route
+                              </button>
+                            )}
                           </div>
                         </div>
                       </Popup>
@@ -1794,13 +1937,26 @@ const FieldVisitsPage = () => {
                       {visit.notes && (
                         <p className="text-xs text-muted-foreground mt-2 italic">📝 {visit.notes}</p>
                       )}
+                      {visit.lead_address ? (
+                        <p className="text-xs text-muted-foreground mt-1">🏠 {visit.lead_address}</p>
+                      ) : null}
                     </div>
                     <div className="mt-4 flex gap-2">
+                      {hasCoords(visit.lead_lat, visit.lead_lng) && (
+                        <a
+                          href={googleMapsNavigateUrl(visit.lead_lat, visit.lead_lng)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center h-8 px-3 rounded-md border text-xs font-bold text-[#1A5490]"
+                        >
+                          🧭 Go to client
+                        </a>
+                      )}
                       <Button
                         size="sm"
                         className="flex-1 bg-[#0F6E56] hover:bg-[#094d3c]"
                         onClick={() => handleStartVisit(visit.id)}
-                        disabled={startVisitMutation.isPending}
+                        disabled={startVisitMutation.isPending || !!inProgressVisit}
                       >
                         <Navigation size={14} className="mr-2" /> Start Visit
                       </Button>
@@ -1808,6 +1964,9 @@ const FieldVisitsPage = () => {
                         <TrendingUp size={14} />
                       </Button>
                     </div>
+                    {!!inProgressVisit && (
+                      <p className="text-[11px] text-amber-700 mt-2">Finish the visit already in progress before starting another.</p>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1840,6 +1999,17 @@ const FieldVisitsPage = () => {
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
                       <MapPin size={11} /> {visit.branch_name}
                     </div>
+                    {hasCoords(visit.lead_lat, visit.lead_lng) && (
+                      <a
+                        href={googleMapsNavigateUrl(visit.lead_lat, visit.lead_lng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex text-[11px] font-bold text-[#1A5490] mt-2"
+                      >
+                        🧭 Open client house
+                      </a>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1919,15 +2089,15 @@ const FieldVisitsPage = () => {
                                   size="sm" 
                                   variant="outline" 
                                   className="h-8 border-primary text-primary hover:bg-primary/5"
-                                  onClick={() => handleSaveCustomerLocation(visit.lead)}
-                                  disabled={updateLeadLocationMutation.isPending}
+                                  onClick={() => handleSaveCustomerLocation(visit)}
+                                  disabled={reachedClientMutation.isPending}
                                 >
-                                  <MapPin size={14} className="mr-1" /> Pin Location
+                                  <MapPin size={14} className="mr-1" /> Save house pin
                                 </Button>
                                 <Button 
                                   size="sm" 
                                   className="h-8 bg-[#0F6E56] hover:bg-[#094d3c]"
-                                  onClick={() => handleViewDetails(visit)}
+                                  onClick={() => handleFinishVisit(visit)}
                                 >
                                   <FileCheck size={14} className="mr-1" /> Finish
                                 </Button>
@@ -1988,14 +2158,14 @@ const FieldVisitsPage = () => {
                               size="sm" 
                               variant="outline" 
                               className="flex-1 h-9 text-xs"
-                              onClick={() => handleSaveCustomerLocation(visit.lead)}
+                              onClick={() => handleSaveCustomerLocation(visit)}
                             >
-                              <MapPin size={14} className="mr-1" /> Pin Location
+                              <MapPin size={14} className="mr-1" /> Save house pin
                             </Button>
                             <Button 
                               size="sm" 
                               className="flex-1 h-9 text-xs bg-[#0F6E56]"
-                              onClick={() => handleViewDetails(visit)}
+                              onClick={() => handleFinishVisit(visit)}
                             >
                               <FileCheck size={14} className="mr-1" /> Finish
                             </Button>
@@ -2210,6 +2380,41 @@ const FieldVisitsPage = () => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showComplete} onOpenChange={setShowComplete}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Finish visit{completeVisit?.lead_name ? ` — ${completeVisit.lead_name}` : ''}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <p className="text-xs text-muted-foreground">This ends GPS tracking for this visit.</p>
+            <label className="text-sm font-medium">Outcome</label>
+            <select
+              className="w-full p-2 rounded-md border border-input bg-background text-sm"
+              value={completeForm.outcome}
+              onChange={(e) => setCompleteForm({ ...completeForm, outcome: e.target.value })}
+            >
+              <option value="interested">Interested</option>
+              <option value="not_interested">Not interested</option>
+              <option value="call_later">Call later</option>
+              <option value="converted">Converted</option>
+            </select>
+            <label className="text-sm font-medium">Notes</label>
+            <textarea
+              className="w-full p-2 rounded-md border border-input bg-background text-sm min-h-[80px]"
+              value={completeForm.notes}
+              onChange={(e) => setCompleteForm({ ...completeForm, notes: e.target.value })}
+              placeholder="What happened at the house?"
+            />
+            <Button
+              className="w-full bg-[#0F6E56] hover:bg-[#094d3c]"
+              onClick={submitCompleteVisit}
+              disabled={endVisitMutation.isPending}
+            >
+              {endVisitMutation.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : 'Complete visit'}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       {/* Assign Visit Modal */}

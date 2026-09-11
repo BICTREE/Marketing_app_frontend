@@ -883,12 +883,12 @@ const TeamPage = () => {
                 {isOwner && (
                   <>
                     <option value="owner">Owner</option>
-                    <option value="manager">Manager</option>
-                    <option value="sub_manager">Sub Manager</option>
+                    <option value="manager">Marketing Manager</option>
+                    <option value="sub_manager">Asst. Marketing Manager</option>
                   </>
                 )}
                 {isManager && !isOwner && (
-                  <option value="sub_manager">Sub Manager</option>
+                  <option value="sub_manager">Asst. Marketing Manager</option>
                 )}
                 <option value="telecaller">Telecaller</option>
                 <option value="field_staff">Field Staff</option>
@@ -1071,8 +1071,8 @@ const TeamPage = () => {
                             className="w-full p-2 border rounded-md bg-white"
                           >
                             <option value="owner">Owner</option>
-                            <option value="manager">Manager</option>
-                            <option value="sub_manager">Sub Manager</option>
+                            <option value="manager">Marketing Manager</option>
+                            <option value="sub_manager">Asst. Marketing Manager</option>
                             <option value="telecaller">Telecaller</option>
                             <option value="field_staff">Field Staff</option>
                             <option value="staff">Staff</option>

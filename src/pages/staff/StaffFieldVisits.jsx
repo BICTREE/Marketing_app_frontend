@@ -14,6 +14,7 @@ import { FOLLOWUP_DATE_CHIPS, addDaysLocal } from '@/lib/jewelleryOccasions';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { googleMapsNavigateUrl, hasCoords } from '@/lib/maps';
 
 // Fix leaflet default icon
 delete L.Icon.Default.prototype._getIconUrl;
@@ -109,7 +110,7 @@ const StaffFieldVisits = () => {
             lng: position.coords.longitude
           }),
           (error) => reject(error),
-          { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 }
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
         );
       }
     });
@@ -129,7 +130,7 @@ const StaffFieldVisits = () => {
       queryClient.invalidateQueries({ queryKey: ['staff-fieldvisits'] });
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to start visit. Check location permissions.');
+      toast.error(error.response?.data?.detail || error.message || 'Failed to start visit. Check location permissions.');
     }
   });
 
@@ -138,32 +139,54 @@ const StaffFieldVisits = () => {
       const coords = await getLocation();
       return api.post(`/field-visits/field-visits/${visitId}/check-in/`, {
         ...coords,
-        note
+        address: note
       });
     },
     onSuccess: () => {
       toast.success('Location check-in recorded!');
       queryClient.invalidateQueries({ queryKey: ['staff-fieldvisits'] });
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail || error.message || 'Could not log location. Turn on GPS and try again.');
     }
   });
 
   const reachedClientMutation = useMutation({
-    mutationFn: async (visitId) => {
+    mutationFn: async ({ visitId, overwrite, saveAsClient }) => {
       const coords = await getLocation();
-      return api.post(`/field-visits/field-visits/${visitId}/reached-client/`, coords);
+      return api.post(`/field-visits/field-visits/${visitId}/reached-client/`, {
+        ...coords,
+        overwrite: !!overwrite,
+        save_as_client_location: saveAsClient !== false,
+      });
     },
-    onSuccess: () => {
-      toast.success('Reached client! Location saved to profile.');
+    onSuccess: (res) => {
+      toast.success(res.data?.detail || 'Reached client.');
       queryClient.invalidateQueries({ queryKey: ['staff-fieldvisits'] });
     },
     onError: (error) => {
-      if (error.response?.status === 404) {
-        toast.error('Server update still deploying. Try again in 2 mins!');
-      } else {
-        toast.error(error.response?.data?.detail || error.message || 'Failed to update location. Please enable GPS.');
-      }
+      toast.error(error.response?.data?.detail || error.message || 'Failed to update location. Please enable GPS.');
     }
   });
+
+  const handleReachedClient = (visit) => {
+    const hasSaved = hasCoords(visit.lead_lat, visit.lead_lng);
+    if (hasSaved) {
+      const replace = window.confirm(
+        'This client already has a house pin. Replace it with your current GPS? Only say yes if you are standing at their house.'
+      );
+      reachedClientMutation.mutate({ visitId: visit.id, overwrite: replace, saveAsClient: true });
+      return;
+    }
+    const savePin = window.confirm(
+      'Save your current GPS as this client’s house location? Only say yes if you are at their house.'
+    );
+    reachedClientMutation.mutate({
+      visitId: visit.id,
+      overwrite: false,
+      saveAsClient: savePin,
+    });
+  };
 
   const endVisitMutation = useMutation({
     mutationFn: async (visitId) => {
@@ -193,7 +216,7 @@ const StaffFieldVisits = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Field Visits</h2>
-          <p className="text-sm text-gray-500">Manage your daily client visits</p>
+          <p className="text-sm text-gray-500">Start assigned visit → log GPS on the way → save house pin at the door → finish</p>
         </div>
         <Button 
           onClick={() => setIsCreateOpen(true)}
@@ -217,6 +240,21 @@ const StaffFieldVisits = () => {
               <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
                 <Phone size={14} /> {activeVisit.lead_phone || 'No phone'}
               </p>
+              {activeVisit.lead_address ? (
+                <p className="text-xs text-gray-500 mt-1">🏠 {activeVisit.lead_address}</p>
+              ) : null}
+              {hasCoords(activeVisit.lead_lat, activeVisit.lead_lng) ? (
+                <a
+                  href={googleMapsNavigateUrl(activeVisit.lead_lat, activeVisit.lead_lng)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center text-xs font-bold text-[#1A5490] mt-2"
+                >
+                  🧭 Open Maps — go to this client
+                </a>
+              ) : (
+                <p className="text-xs text-amber-700 mt-2">No house pin yet. Tap Reached Client when you arrive.</p>
+              )}
             </div>
             
             <div className="bg-gray-50 p-3 rounded-lg border border-gray-100 text-sm flex justify-between items-center">
@@ -237,7 +275,7 @@ const StaffFieldVisits = () => {
                 <MapPin size={14} className="mr-1" /> Log Loc
               </Button>
               <Button 
-                onClick={() => reachedClientMutation.mutate(activeVisit.id)}
+                onClick={() => handleReachedClient(activeVisit)}
                 className="flex-1 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border-none text-xs px-2"
                 variant="outline"
                 disabled={reachedClientMutation.isPending}
@@ -294,6 +332,11 @@ const StaffFieldVisits = () => {
                       dashArray="5, 10"
                     />
                   )}
+                  {hasCoords(activeVisit.lead_lat, activeVisit.lead_lng) && (
+                    <Marker position={[parseFloat(activeVisit.lead_lat), parseFloat(activeVisit.lead_lng)]}>
+                      <Popup>Client house — {activeVisit.lead_name}</Popup>
+                    </Marker>
+                  )}
                 </MapContainer>
               </div>
             )}
@@ -313,11 +356,24 @@ const StaffFieldVisits = () => {
                   <div>
                     <p className="font-bold">{visit.lead_name}</p>
                     <p className="text-xs text-gray-500">{visit.notes || visit.purpose || 'Follow-up Visit'}</p>
+                    {visit.lead_address ? (
+                      <p className="text-xs text-gray-500 mt-1">🏠 {visit.lead_address}</p>
+                    ) : null}
                     {visit.scheduled_date && (
                       <p className="text-xs text-gray-400 mt-1">
                         📅 Scheduled: {format(new Date(visit.scheduled_date), 'MMM dd, yyyy hh:mm a')}
                       </p>
                     )}
+                    {hasCoords(visit.lead_lat, visit.lead_lng) ? (
+                      <a
+                        href={googleMapsNavigateUrl(visit.lead_lat, visit.lead_lng)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex text-xs font-bold text-[#1A5490] mt-2"
+                      >
+                        🧭 Go to client on Maps
+                      </a>
+                    ) : null}
                   </div>
                   <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Scheduled</Badge>
                 </div>

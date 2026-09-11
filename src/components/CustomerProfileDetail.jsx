@@ -20,6 +20,8 @@ import { JEWELLERY_OCCASIONS, occasionLabel, formatClientPlace, isMarriageOccasi
 import { timelineLabel, timelineStaff, timelineSummary } from '../lib/clientTimeline';
 import toast from 'react-hot-toast';
 import useAuth from '../hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import { googleMapsNavigateUrl, hasCoords } from '../lib/maps';
 
 // ── Helpers & Constants ───────────────────────────────────────────────────────
 const STAGE_META = {
@@ -434,8 +436,10 @@ const ProfileAttributesTab = ({ customer, customerId, canEdit, activeLead }) => 
 
 const CustomerProfileDetail = ({ customerId }) => {
   const { hasPermission, user } = useAuth();
+  const navigate = useNavigate();
   const canEditLead = hasPermission('leads:edit');
   const canManagerDecide = ['owner', 'admin', 'manager', 'sub_manager'].includes(user?.role) || user?.is_superuser;
+  const canSeeLiveMap = canManagerDecide;
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('overview');
   const [timelineFilter, setTimelineFilter] = useState('all');
@@ -779,6 +783,31 @@ const CustomerProfileDetail = ({ customerId }) => {
                 <span className="text-gray-400 italic">Not captured yet</span>
               </div>
             )}
+            {(() => {
+              const lat = activeLead?.lat || customer?.lat;
+              const lng = activeLead?.lng || customer?.lng;
+              if (!hasCoords(lat, lng)) return null;
+              const mapsHref = googleMapsNavigateUrl(lat, lng);
+              return (
+                <div className={`grid gap-2 pt-1 ${canSeeLiveMap && activeLead?.id ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <a href={mapsHref} target="_blank" rel="noopener noreferrer">
+                    <Button type="button" variant="outline" className="w-full h-9 text-[11px] font-bold">
+                      <Map size={13} className="mr-1" /> Go to house
+                    </Button>
+                  </a>
+                  {canSeeLiveMap && activeLead?.id ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-9 text-[11px] font-bold"
+                      onClick={() => navigate(`/field-visits?lead=${activeLead.id}`)}
+                    >
+                      <MapPin size={13} className="mr-1" /> Show on map
+                    </Button>
+                  ) : null}
+                </div>
+              );
+            })()}
             {(activeLead?.occasion || activeLead?.occasion_date) && (
               <div className="flex items-start justify-between text-gray-700 text-xs gap-3">
                 <span className="flex items-center gap-2 text-gray-500 font-semibold shrink-0">
