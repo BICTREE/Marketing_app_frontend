@@ -132,7 +132,7 @@ const LoginPage = () => {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="admin@bindujewellery.com"
+                    placeholder="anilkumar@bindujewellery.in"
                     autoComplete="email"
                     {...register('email')}
                     className={errors.email ? 'border-destructive focus-visible:ring-destructive' : ''}
@@ -267,8 +267,8 @@ const LoginPage = () => {
         <p className="text-xs text-muted-foreground mb-2">Access levels</p>
         <div className="flex justify-center gap-2 flex-wrap">
           {[
-            { label: 'Admin (OTP Secured)', color: 'bg-red-100 text-red-700' },
-            { label: 'Owner (OTP Secured)', color: 'bg-amber-100 text-amber-700' },
+            { label: 'Marketing Manager (OTP)', color: 'bg-amber-100 text-amber-700' },
+            { label: 'Owner / Admin', color: 'bg-red-100 text-red-700' },
             { label: 'Staff', color: 'bg-green-100 text-green-700' },
           ].map((r) => (
             <span key={r.label} className={`px-2 py-0.5 rounded-full text-xs font-medium ${r.color}`}>
