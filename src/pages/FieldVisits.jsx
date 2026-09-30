@@ -738,8 +738,12 @@ const FieldVisitsPage = () => {
     activeVisitIdRef.current = active ? active.id : null;
   }, [filteredVisits]);
 
+  // Assistant managers are tracked like field staff. Owner, admin, and the
+  // marketing manager only watch the map.
+  const sharesOwnLocation = user?.role === 'sub_manager' || !canManageVisits;
+
   useEffect(() => {
-    if (canManageVisits || !navigator.geolocation) return;
+    if (!sharesOwnLocation || !navigator.geolocation) return;
 
     const REPORT_INTERVAL_MS = 15000;
     const MAX_ACCEPTABLE_ACCURACY_M = 100;
@@ -806,7 +810,7 @@ const FieldVisitsPage = () => {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [canManageVisits]);
+  }, [sharesOwnLocation]);
 
   const updateLeadLocationMutation = useMutation({
     mutationFn: ({ id, lat, lng }) => api.patch(`/leads/leads/${id}/`, { lat, lng }),
@@ -937,7 +941,7 @@ const FieldVisitsPage = () => {
                 className="px-3 py-2 border rounded-md bg-background text-sm"
               >
                 <option value="all">All Staff</option>
-                {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff').map(s => (
+                {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff' || s.role === 'sub_manager').map(s => (
                   <option key={s.id} value={s.id}>{s.full_name}</option>
                 ))}
               </select>
@@ -1311,7 +1315,7 @@ const FieldVisitsPage = () => {
                         🟢 {loc.staff_name}
                       </option>
                     ))}
-                    {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff').map(s => (
+                    {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff' || s.role === 'sub_manager').map(s => (
                       <option key={`staff-${s.id}`} value={s.id}>
                         👤 {s.full_name} (Route History)
                       </option>
@@ -2449,11 +2453,11 @@ const FieldVisitsPage = () => {
                   required
                 >
                   <option value="">Choose field staff...</option>
-                  {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff').map(s => (
+                  {staffData?.filter(s => s.role === 'field_staff' || s.role === 'staff' || s.role === 'sub_manager').map(s => (
                     <option key={s.id} value={s.id}>{s.full_name} ({s.branch_name})</option>
                   ))}
                 </select>
-                <p className="text-[10px] text-muted-foreground">Only field staff roles are shown</p>
+                <p className="text-[10px] text-muted-foreground">Field staff and assistant marketing managers</p>
               </div>
             )}
 
